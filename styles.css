@@ -3,16 +3,17 @@
    ========================================================= */
 
 :root {
-  --bg: #14121c;
-  --bg-2: #241d33;
-  --surface: rgba(255, 255, 255, .07);
-  --surface-strong: rgba(255, 255, 255, .12);
-  --border: rgba(255, 255, 255, .14);
-  --text: #f6f3ff;
-  --muted: #b5adc9;
-  --accent: #ffcc00;
-  --accent-2: #ff4fa3;
-  --on-accent: #1a1400;
+  /* Charte HTV Flash : noir, doré, blanc */
+  --bg: #0a0a0a;
+  --bg-2: #2a2214;
+  --surface: rgba(255, 255, 255, .06);
+  --surface-strong: rgba(255, 255, 255, .11);
+  --border: rgba(212, 175, 55, .28);
+  --text: #ffffff;
+  --muted: #c9bfa8;
+  --accent: #d4af37;
+  --accent-2: #f5e6b3;
+  --on-accent: #0a0a0a;
   --success: #2ecc71;
   --danger: #ff5d5d;
   --radius: 22px;
@@ -85,7 +86,10 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; width: 100%
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; align-items: baseline; gap: 4px; font-family: var(--display); font-weight: 900; letter-spacing: .02em; }
+.brand { display: flex; align-items: center; }
+.brand-logo { height: 56px; width: auto; display: block; }
+[data-theme="clair"] .brand-logo, [data-theme="printemps"] .brand-logo, [data-theme="ete"] .brand-logo,
+[data-theme="paques"] .brand-logo, [data-theme="mariage"] .brand-logo { filter: invert(1); }
 .brand-htv { font-size: 1.8rem; }
 .brand-flash {
   font-size: .9rem; padding: 2px 8px; border-radius: 8px; transform: rotate(-6deg) translateY(-6px);
@@ -360,7 +364,7 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
 }
 @media (max-width: 640px) {
   main { padding: 16px; }
-  .brand-htv { font-size: 1.4rem; }
+  .brand-logo { height: 42px; }
   .screen-title { display: none; }
   .hero-start { padding: 22px; gap: 14px; }
   .hero-text b { font-size: 1.5rem; }
@@ -375,3 +379,52 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
   .formula-row { grid-template-columns: 1fr 1fr; }
   .photo-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }
+
+/* ---------- Reversement association / événement ---------- */
+.donation { display: flex; align-items: center; gap: 18px; max-width: 900px; margin: 0 auto 18px; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.donation-icon { font-size: 2.6rem; }
+.donation-body { flex: 1; }
+.donation-title { font-weight: 800; font-size: 1.2rem; }
+.donation-amount { font-family: var(--display); font-weight: 900; font-size: 2.2rem; color: var(--accent); white-space: nowrap; }
+.pay-donation { text-align: right; font-weight: 700; margin-top: 6px; color: var(--accent); }
+.event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.event-opt {
+  min-height: 130px; border-radius: 18px; border: 3px solid var(--border); background: var(--surface-strong);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px; text-align: center;
+}
+.event-opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.event-opt .ev-emoji { font-size: 2.2rem; }
+.event-opt .ev-name { font-weight: 800; font-size: 1.1rem; }
+.event-opt .ev-rule { font-size: .85rem; color: var(--muted); }
+.event-pct { display: flex; align-items: center; gap: 6px; font-weight: 800; }
+.event-pct input { width: 90px; min-height: 52px; text-align: center; font: inherit; font-size: 1.2rem; border-radius: 12px; border: 2px solid var(--border); background: var(--bg); color: var(--text); }
+
+/* ---------- Code à 4 chiffres ---------- */
+.pin { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); }
+.pin-box { text-align: center; width: min(420px, 92vw); }
+.pin-lock { font-size: 3rem; }
+.pin-dots { display: flex; justify-content: center; gap: 18px; margin: 18px 0 26px; }
+.pin-dots span { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--text); }
+.pin-dots span.on { background: var(--accent); border-color: var(--accent); }
+.pin-dots.shake { animation: shake .4s; }
+@keyframes shake { 25% { transform: translateX(-12px); } 50% { transform: translateX(12px); } 75% { transform: translateX(-6px); } }
+.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.pin-pad button { min-height: 84px; border-radius: 22px; border: 1px solid var(--border); background: var(--surface-strong); font-size: 2rem; font-weight: 700; }
+.pin-pad button:active { background: var(--accent); color: var(--on-accent); }
+.pin-pad .pin-fn { font-size: 1.1rem; background: transparent; }
+
+.old-price { opacity: .55; font-weight: 400; font-size: .8em; }
+.pill-mini { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: .85rem; }
+.formula small { color: var(--muted); font-size: .85rem; }
+.event-grid { display: flex; flex-direction: column; gap: 10px; }
+.event-row { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: 18px; border: 2px solid var(--border); background: var(--surface-strong); }
+.event-row.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.event-row .ev-emoji { font-size: 2rem; }
+.event-row .ev-text { flex: 1; display: flex; flex-direction: column; }
+.event-row .ev-text b { font-size: 1.2rem; }
+.event-row .ev-text small { color: var(--muted); }
+.formula-row { grid-template-columns: 1.6fr .6fr .8fr .8fr 1.6fr auto; }
+.formula-row.head { font-size: .8rem; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+@media (max-width: 900px) { .formula-row { grid-template-columns: 1fr 1fr 1fr; } .formula-row.head { display: none; } }
+
+#pay-no-config { display: block; line-height: 1.6; }

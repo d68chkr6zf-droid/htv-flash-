@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.2.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,7 +16,7 @@ const hasFS = 'showDirectoryPicker' in window;
    --------------------------------------------------------- */
 const THEMES = [
   { id: 'auto', name: 'Automatique', emoji: '📅', bg: '#444', bg2: '#888', text: '#fff' },
-  { id: 'classique', name: 'Classique', emoji: '📸', bg: '#14121c', bg2: '#241d33', text: '#f6f3ff', fx: ['✨'], fxCount: 8 },
+  { id: 'classique', name: 'HTV Flash (noir & or)', emoji: '✨', bg: '#0a0a0a', bg2: '#2a2214', text: '#ffffff', fx: ['✨'], fxCount: 8 },
   { id: 'clair', name: 'Clair', emoji: '🤍', bg: '#f5f3ef', bg2: '#e7e2d8', text: '#1d1a17' },
   { id: 'hiver', name: 'Hiver', emoji: '❄️', bg: '#0d1f33', bg2: '#2b4d72', text: '#f0f8ff', fx: ['❄', '❅', '❆', '•'], fxCount: 40 },
   { id: 'printemps', name: 'Printemps', emoji: '🌸', bg: '#fdf6f0', bg2: '#dff3d9', text: '#24361f', fx: ['🌸', '🌼', '🦋', '🌷'], fxCount: 18 },
@@ -56,26 +56,59 @@ function themeForDate(d = new Date()) {
    Réglages (stockés sur l'appareil)
    --------------------------------------------------------- */
 const DEFAULT_SETTINGS = {
-  theme: 'auto',
+  theme: 'classique',
   anim: true,
   sumupLink: '',
   sumupKey: '',
   consentText: "J'autorise HTV Flash à utiliser les photos prises lors de cette séance pour sa communication (site internet, réseaux sociaux, portfolio, salons).\nJe peux retirer mon accord à tout moment par simple e-mail.",
+  eventActive: 'none',
+  eventPct: { telethon: 50, mariage: 10, 'fete-locale': 10 },
+  pinHash: '',
+  // price = prix d'origine (avant réduction) ; telethon = montant reversé au Téléthon
   formulas: [
-    { id: 'f1', name: '1 photo', price: 10, link: '' },
-    { id: 'f2', name: '3 photos', price: 25, link: '' },
-    { id: 'f3', name: '5 photos', price: 35, link: '' },
-    { id: 'f4', name: 'Toutes les photos', price: 50, link: '' },
+    { id: 'f1', name: '🎅 Lutinette', photos: 1, price: 12, telethon: 2, link: '' },
+    { id: 'f2', name: '🎁 Duo de Rennes', photos: 2, price: 20, telethon: 3, link: '' },
+    { id: 'f3', name: '⛄ Trio Enneigé', photos: 3, price: 28, telethon: 4, link: '' },
+    { id: 'f4', name: '🎄 Pack Magie de Noël', photos: 5, price: 40, telethon: 5, link: '' },
   ],
 };
 let settings = loadSettings();
 function loadSettings() {
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('htv-settings') || '{}') }; }
+  try {
+    const s = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('htv-settings') || '{}') };
+    s.eventPct = { ...DEFAULT_SETTINGS.eventPct, ...s.eventPct };
+    if (s.formulas.some((f) => f.photos === undefined)) s.formulas = DEFAULT_SETTINGS.formulas;
+    return s;
+  }
   catch { return { ...DEFAULT_SETTINGS }; }
 }
 function saveSettings() {
   try { localStorage.setItem('htv-settings', JSON.stringify(settings)); } catch { /* stockage indisponible */ }
 }
+
+/* ---------------------------------------------------------
+   Réduction pour association et événement
+   --------------------------------------------------------- */
+const EVENTS = [
+  { id: 'telethon', name: 'Téléthon', emoji: '💛', note: 'Réduction + montant reversé au Téléthon selon la formule' },
+  { id: 'mariage', name: 'Mariage', emoji: '💍', note: 'Réduction sur les formules' },
+  { id: 'fete-locale', name: 'Fêtes locales', emoji: '🎪', note: 'Réduction sur les formules' },
+];
+const activeEvent = () => EVENTS.find((e) => e.id === settings.eventActive) || null;
+const eventPct = (id) => Number(settings.eventPct?.[id]) || 0;
+const round2 = (n) => Math.round(n * 100) / 100;
+// prix après réduction de l'événement (pct = pourcentage de réduction)
+const discounted = (price, pct) => round2((Number(price) || 0) * (1 - (Number(pct) || 0) / 100));
+const sortedFormulas = () => [...settings.formulas].sort((a, b) => (a.photos || 0) - (b.photos || 0));
+// formule correspondant au nombre de photos choisies (la plus petite qui les contient)
+function formulaForCount(n) {
+  if (!n) return null;
+  const list = sortedFormulas();
+  return list.find((f) => (f.photos || 0) >= n) || list[list.length - 1] || null;
+}
+const priceHTML = (f, pct) => (pct
+  ? `<s class="old-price">${euro(f.price)}</s> ${euro(discounted(f.price, pct))}`
+  : euro(f.price));
 
 /* ---------------------------------------------------------
    Base de données locale (IndexedDB)
@@ -132,6 +165,7 @@ function busy(on, text = 'Patientez…', pct = null) {
    Navigation entre écrans (#accueil, #wizard/3, #clients…)
    --------------------------------------------------------- */
 let current = 'home';
+let routedOnce = false;
 function go(screen, step) {
   const hash = screen === 'home' ? '' : screen === 'wizard' ? `#wizard/${step || wiz.step}` : `#${screen}`;
   if (location.hash === hash) { route(); return; }
@@ -143,6 +177,13 @@ function route() {
   const [screen, arg] = location.hash.replace('#', '').split('/');
   const name = screen || 'home';
   if (!$(`#screen-${name}`)) return go('home');
+  if (name !== 'settings') settingsUnlocked = false; // on reverrouille en quittant les réglages
+  if (name === 'settings' && !settingsUnlocked) {
+    const cameFromApp = routedOnce;
+    askPin().then((ok) => { if (ok) { settingsUnlocked = true; route(); } else if (cameFromApp) history.back(); else go('home'); });
+    return;
+  }
+  routedOnce = true;
   current = name;
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${name}`));
   $('#btn-home').hidden = name === 'home';
@@ -345,6 +386,7 @@ function renderSelection() {
 }
 function updateSelCount() {
   $('#sel-count').textContent = session.photos.filter((p) => p.selected).length;
+  renderDonation();
   updateWizNav();
 }
 
@@ -373,7 +415,7 @@ function closeViewer() {
   if (viewer.url) URL.revokeObjectURL(viewer.url);
   viewer.url = null;
   $('#viewer-img').src = '';
-  if (current === 'wizard' && wiz.step === 3) renderSelection();
+  if (current === 'wizard' && wiz.step === 2) renderSelection();
 }
 
 /* ---------------------------------------------------------
@@ -448,6 +490,8 @@ function ficheText(c) {
     `Droit à l'image : ${c.consent ? 'ACCEPTÉ' : 'REFUSÉ'}`,
     c.consent ? `Texte accepté   : ${settings.consentText.replace(/\n/g, ' ')}` : '',
     `Paiement        : ${c.paid ? `PAYÉ (${c.payMethod === 'cash' ? 'espèces' : 'carte SumUp'}) ${euro(c.amount)}${c.formula ? ` · ${c.formula}` : ''}` : 'en attente'}`,
+    c.event ? `Événement       : ${c.eventName}${c.eventPct ? ` (réduction ${c.eventPct} %)` : ''}` : '',
+    c.event === 'telethon' ? `Reversé Téléthon: ${euro(c.donation)}` : '',
     `Retouche        : ${c.retouched ? 'terminée' : 'à faire'}`,
     '',
     'Liste des photos :',
@@ -499,7 +543,7 @@ async function thumbDataFor(photo) {
 /* ---------------------------------------------------------
    Parcours guidé
    --------------------------------------------------------- */
-const STEPS = ['Carte microSD', 'Coordonnées', 'Photos', "Droit à l'image", 'Enregistrer', 'Paiement'];
+const STEPS = ['Carte microSD', 'Photos', 'Coordonnées', "Droit à l'image", 'Enregistrer', 'Paiement'];
 const wiz = { step: 1, consent: null, savedId: null };
 
 function renderStepper() {
@@ -517,8 +561,8 @@ function showStep(n) {
   $('#stepper').hidden = wiz.step === 7;
   renderStepper();
   if (wiz.step === 1) renderImport();
-  if (wiz.step === 2) setTimeout(() => { const f = $$('#client-form input').find((i) => !i.value); if (f) f.focus(); }, 250);
-  if (wiz.step === 3) renderSelection();
+  if (wiz.step === 2) renderSelection();
+  if (wiz.step === 3) { renderDonation(); setTimeout(() => { const f = $$('#client-form input').find((i) => !i.value); if (f) f.focus(); }, 250); }
   if (wiz.step === 4) renderConsent();
   if (wiz.step === 5) renderRecap();
   if (wiz.step === 6) mountPay('wizard');
@@ -530,7 +574,7 @@ function formData() {
   const f = $('#client-form');
   return {
     nom: f.nom.value.trim().toUpperCase(),
-    prenom: f.prenom.value.trim().replace(/\b\p{L}/gu, (c) => c.toUpperCase()),
+    prenom: f.prenom.value.trim().toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (m, sep, c) => sep + c.toUpperCase()),
     email: f.email.value.trim().toLowerCase(),
     tel: f.tel.value.trim(),
   };
@@ -552,8 +596,8 @@ function formErrors(mark = false) {
 }
 function stepProblem(n) {
   if (n === 1 && !session.photos.length) return "Lisez d'abord la carte microSD";
-  if (n === 2) { const e = formErrors(); if (e.length) return `Complétez ${e.join(', ')}`; }
-  if (n === 3 && !session.photos.some((p) => p.selected)) return 'Choisissez au moins une photo';
+  if (n === 2 && !session.photos.some((p) => p.selected)) return 'Choisissez au moins une photo';
+  if (n === 3) { const e = formErrors(); if (e.length) return `Complétez ${e.join(', ')}`; }
   if (n === 4 && wiz.consent === null) return 'Touchez « J\'accepte » ou « Je refuse »';
   return '';
 }
@@ -574,7 +618,7 @@ function updateWizNav() {
 async function wizNext() {
   const s = wiz.step;
   const problem = stepProblem(s);
-  if (problem) { if (s === 2) formErrors(true); toast(problem); return; }
+  if (problem) { if (s === 3) formErrors(true); toast(problem); return; }
   if (s === 5 && !wiz.savedId) { await saveClient(); return; }
   if (s === 6) {
     const c = wiz.savedId && (await db.client(wiz.savedId));
@@ -596,6 +640,27 @@ function newSession({ keepPhotos = false } = {}) {
   else session.photos.forEach((p) => { p.selected = false; });
 }
 
+function renderDonation() {
+  const ev = activeEvent();
+  const box = $('#donation-box');
+  box.hidden = !ev;
+  if (!ev) return;
+  const n = session.photos.filter((p) => p.selected).length;
+  const f = formulaForCount(n);
+  const pct = eventPct(ev.id);
+  $('#donation-icon').textContent = ev.emoji;
+  const formulaLine = f ? `${f.name} (${f.photos} photo${f.photos > 1 ? 's' : ''}) : ${priceHTML(f, pct)}` : "Choisissez vos photos à l'étape 2";
+  if (ev.id === 'telethon') {
+    $('#donation-title').textContent = 'Montant reversé au Téléthon';
+    $('#donation-detail').innerHTML = `${formulaLine}${pct ? ` <span class="pill-mini">−${pct} %</span>` : ''}`;
+    $('#donation-amount').textContent = euro(f ? f.telethon : 0);
+  } else {
+    $('#donation-title').textContent = `Réduction ${ev.name}`;
+    $('#donation-detail').innerHTML = formulaLine;
+    $('#donation-amount').textContent = `−${pct} %`;
+  }
+}
+
 function renderConsent() {
   $('#consent-text').textContent = settings.consentText;
   $$('[data-consent]').forEach((b) => b.classList.toggle('on', wiz.consent === b.dataset.consent));
@@ -615,6 +680,12 @@ function renderRecap() {
     <dt>Portable</dt><dd>${esc(d.tel)}</dd>
     <dt>Droit à l'image</dt><dd>${wiz.consent === 'yes' ? '👍 Accepté' : '🙅 Refusé'}</dd>
     <dt>Photos</dt><dd>${sel.length} photo(s)${sel.some((p) => p.raw) ? ' (+ fichiers RAW)' : ''}</dd>
+    ${(() => {
+      const ev = activeEvent(); const f = formulaForCount(sel.length);
+      if (!f) return '';
+      const pct = ev ? eventPct(ev.id) : 0;
+      return `<dt>Formule</dt><dd>${esc(f.name)} : ${priceHTML(f, pct)}</dd>${ev ? `<dt>${esc(ev.name)}</dt><dd>${pct ? `−${pct} %` : ''}${ev.id === 'telethon' ? ` · ${euro(f.telethon)} reversés au Téléthon` : ''}</dd>` : ''}`;
+    })()}
     <div class="thumbs">${sel.slice(0, 24).map((p) => (p.thumb ? `<img src="${p.thumb}" alt="">` : '')).join('')}${sel.length > 24 ? `<span class="muted">+${sel.length - 24}</span>` : ''}</div>`;
   renderFolderNames();
 }
@@ -643,6 +714,11 @@ async function saveClient() {
       formula: '',
       payMethod: '',
       thumbData: await thumbDataFor(sel[0]),
+      event: activeEvent() ? activeEvent().id : '',
+      eventName: activeEvent() ? activeEvent().name : '',
+      eventPct: activeEvent() ? eventPct(activeEvent().id) : 0,
+      formulaId: formulaForCount(sel.length)?.id || '',
+      donation: activeEvent()?.id === 'telethon' ? (formulaForCount(sel.length)?.telethon || 0) : 0,
     };
     await writeClientFiles(c, dir);
     await db.putClient(c);
@@ -681,26 +757,59 @@ function mountPay(where) {
   const mount = $(`[data-pay-mount="${where}"]`);
   if (payNode.parentElement !== mount) mount.appendChild(payNode);
   if (where === 'wizard' && wiz.savedId) payState.clientId = wiz.savedId;
-  renderPay(where);
+  renderPay(where, true);
 }
-async function renderPay(where = current === 'wizard' ? 'wizard' : 'direct') {
+async function renderPay(where = current === 'wizard' ? 'wizard' : 'direct', preselect = false) {
   const sel = $('#pay-client', payNode);
   const clients = (await db.clients()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   sel.innerHTML = '<option value="">— Sans fiche client —</option>' + clients.map((c) => `<option value="${c.id}">${esc(c.prenom)} ${esc(c.nom)} · ${new Date(c.createdAt).toLocaleDateString('fr-FR')}${c.paid ? ' · payé' : ''}</option>`).join('');
   sel.value = payState.clientId || '';
   sel.disabled = where === 'wizard' && Boolean(wiz.savedId);
 
-  $('#pay-formulas', payNode).innerHTML = settings.formulas.map((f) => `
-    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(f.name)}</b><span>${euro(f.price)}</span></button>`).join('');
-  $('#pay-amount', payNode).value = payState.amount;
   const c = clients.find((x) => x.id === payState.clientId);
+  payClientCache = c || null;
+  // formule proposée d'après le nombre de photos du client
+  if (preselect && c && !c.paid && !payState.formula && c.formulaId && settings.formulas.some((f) => f.id === c.formulaId)) {
+    payState.formula = c.formulaId;
+    payState.amount = String(discounted(currentFormula().price, payPct()));
+  }
+  const pct = payPct();
+  $('#pay-formulas', payNode).innerHTML = sortedFormulas().map((f) => `
+    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(f.name)}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('');
+  $('#pay-amount', payNode).value = payState.amount;
   $('#pay-state', payNode).textContent = c && c.paid ? `✅ Déjà payé : ${euro(c.amount)} (${c.payMethod === 'cash' ? 'espèces' : 'carte'})` : '';
   refreshPayOutputs();
+}
+let payClientCache = null;
+function payEvent() {
+  // un client garde l'événement actif au moment de sa fiche ; sans fiche, on prend l'événement actif
+  const c = payClientCache;
+  if (c) return c.event ? { ev: EVENTS.find((e) => e.id === c.event), pct: c.eventPct || 0 } : null;
+  const ev = activeEvent();
+  return ev ? { ev, pct: eventPct(ev.id) } : null;
+}
+const payPct = () => payEvent()?.pct || 0;
+function payDonationAmount() {
+  const pe = payEvent();
+  if (!pe || !pe.ev || pe.ev.id !== 'telethon') return 0;
+  const f = currentFormula();
+  return f ? Number(f.telethon) || 0 : (payClientCache?.donation || 0);
+}
+function showPayDonation() {
+  const el = $('#pay-donation', payNode);
+  const pe = payEvent();
+  el.hidden = !pe || !pe.ev;
+  if (el.hidden) return;
+  const parts = [];
+  if (pe.pct) parts.push(`Réduction ${pe.ev.name} −${pe.pct} %`);
+  if (pe.ev.id === 'telethon') parts.push(`dont ${euro(payDonationAmount())} reversés au Téléthon`);
+  el.textContent = `${pe.ev.emoji} ${parts.join(' · ')}`;
 }
 function currentFormula() { return settings.formulas.find((f) => f.id === payState.formula) || null; }
 function refreshPayOutputs() {
   const amt = Number(String(payState.amount).replace(',', '.')) || 0;
   $('#pay-total', payNode).textContent = euro(amt);
+  showPayDonation();
   const f = currentFormula();
   const link = (f && f.link) || settings.sumupLink;
   const qrWrap = $('#pay-qr-wrap', payNode);
@@ -723,7 +832,7 @@ function bindPay(node) {
     const b = e.target.closest('[data-fid]');
     if (!b) return;
     payState.formula = b.dataset.fid;
-    payState.amount = String(currentFormula().price);
+    payState.amount = String(discounted(currentFormula().price, payPct()));
     $$('.formula', node).forEach((x) => x.classList.toggle('on', x === b));
     $('#pay-amount', node).value = payState.amount;
     refreshPayOutputs();
@@ -763,6 +872,8 @@ async function markPaid(method) {
     const c = await db.client(payState.clientId);
     if (c) {
       Object.assign(c, { paid: true, payMethod: method, amount: amt, formula: f ? f.name : '', paidAt: new Date().toISOString() });
+      if (c.event === 'telethon') { c.donation = payDonationAmount(); }
+      if (f) c.formulaId = f.id;
       await db.putClient(c);
       syncClientFile(c);
     }
@@ -812,6 +923,7 @@ function badges(c) {
     c.retouched ? '<span class="badge ok">✓ Retouché</span>' : '<span class="badge warn">À retoucher</span>',
     c.paid ? `<span class="badge ok">Payé ${euro(c.amount)}</span>` : '<span class="badge no">Non payé</span>',
     c.consent ? '<span class="badge ok">Droit image ✓</span>' : '<span class="badge">Droit image ✗</span>',
+    c.event ? `<span class="badge">${esc(c.eventName)}${c.event === 'telethon' ? ` ${euro(c.donation)}` : ''}</span>` : '',
   ].join('');
 }
 
@@ -885,22 +997,36 @@ function renderSettings() {
   $('#set-sumup-key').value = settings.sumupKey;
   $('#set-consent').value = settings.consentText;
   renderFormulaList();
+  renderEvents();
   renderFolderNames();
   $('#app-version').textContent = `HTV Flash v${APP_VERSION} · ${hasFS ? 'accès aux dossiers OK' : 'accès aux dossiers indisponible sur ce navigateur'}`;
 }
+function renderEvents() {
+  $('#event-grid').innerHTML = EVENTS.map((e) => `
+    <div class="event-row${settings.eventActive === e.id ? ' on' : ''}">
+      <span class="ev-emoji">${e.emoji}</span>
+      <span class="ev-text"><b>${esc(e.name)}</b><small>${esc(e.note)}</small></span>
+      <label class="event-pct">−<input type="number" inputmode="numeric" min="0" max="100" step="1" data-pct="${e.id}" value="${eventPct(e.id)}"> %</label>
+      <input type="checkbox" class="switch" data-ev="${e.id}" ${settings.eventActive === e.id ? 'checked' : ''} aria-label="Activer ${esc(e.name)}">
+    </div>`).join('');
+}
 function renderFormulaList() {
-  $('#formula-list').innerHTML = settings.formulas.map((f, i) => `
+  $('#formula-list').innerHTML = `
+    <div class="formula-row head"><span>Nom</span><span>Photos</span><span>Prix d'origine</span><span>Reversé Téléthon</span><span>Lien SumUp (facultatif)</span><span></span></div>` +
+    settings.formulas.map((f, i) => `
     <div class="formula-row" data-i="${i}">
       <input data-k="name" value="${esc(f.name)}" placeholder="Nom de la formule">
-      <input data-k="price" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.price)}" placeholder="Prix €">
-      <input data-k="link" type="url" value="${esc(f.link)}" placeholder="Lien SumUp de cette formule (facultatif)">
+      <input data-k="photos" type="number" inputmode="numeric" min="1" step="1" value="${esc(f.photos ?? 1)}" aria-label="Nombre de photos">
+      <input data-k="price" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.price)}" aria-label="Prix d'origine en euros">
+      <input data-k="telethon" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.telethon ?? 0)}" aria-label="Montant reversé au Téléthon">
+      <input data-k="link" type="url" value="${esc(f.link)}" placeholder="https://pay.sumup.com/…">
       <button class="icon-btn" data-del="${i}" aria-label="Supprimer">🗑</button>
     </div>`).join('');
 }
 
 function exportCSV(clients) {
-  const cols = ['createdAt', 'nom', 'prenom', 'email', 'tel', 'consent', 'photos', 'paid', 'amount', 'payMethod', 'formula', 'retouched', 'folder'];
-  const head = ['Date', 'Nom', 'Prénom', 'E-mail', 'Portable', "Droit à l'image", 'Nb photos', 'Payé', 'Montant', 'Moyen', 'Formule', 'Retouché', 'Dossier'];
+  const cols = ['createdAt', 'nom', 'prenom', 'email', 'tel', 'consent', 'photos', 'paid', 'amount', 'payMethod', 'formula', 'eventName', 'donation', 'retouched', 'folder'];
+  const head = ['Date', 'Nom', 'Prénom', 'E-mail', 'Portable', "Droit à l'image", 'Nb photos', 'Payé', 'Montant', 'Moyen', 'Formule', 'Événement', 'Montant reversé', 'Retouché', 'Dossier'];
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = clients.map((c) => cols.map((k) => {
     if (k === 'photos') return c.photos.length;
@@ -916,6 +1042,73 @@ function exportCSV(clients) {
 
 function renderHome() {
   $('#steps-preview').innerHTML = STEPS.map((s, i) => `<span>${i + 1}. ${esc(s)}</span>`).join('');
+}
+
+/* ---------------------------------------------------------
+   Code à 4 chiffres des réglages
+   --------------------------------------------------------- */
+let settingsUnlocked = false;
+async function hashPin(pin) {
+  const data = new TextEncoder().encode(`htvflash:${pin}`);
+  if (crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return `plain:${pin}`;
+}
+let pinResolve = null;
+const pinState = { mode: 'check', entry: '', first: '' };
+function askPin(mode = settings.pinHash ? 'check' : 'create') {
+  if (pinResolve) pinResolve(false);
+  Object.assign(pinState, { mode, entry: '', first: '' });
+  updatePinUI();
+  $('#pin').hidden = false;
+  return new Promise((res) => { pinResolve = res; });
+}
+function updatePinUI() {
+  const titles = {
+    check: ['Code des réglages', 'Entrez votre code à 4 chiffres'],
+    create: ['Créer un code', 'Choisissez un code à 4 chiffres pour protéger les réglages'],
+    confirm: ['Confirmer le code', 'Entrez le même code une deuxième fois'],
+  };
+  const [t, sub] = titles[pinState.mode];
+  $('#pin-title').textContent = t;
+  $('#pin-sub').textContent = sub;
+  $$('#pin-dots span').forEach((d, i) => d.classList.toggle('on', i < pinState.entry.length));
+}
+function closePin(ok) {
+  $('#pin').hidden = true;
+  const r = pinResolve; pinResolve = null;
+  if (r) r(ok);
+}
+function pinShake(msg) {
+  const d = $('#pin-dots');
+  d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake');
+  if (msg) toast(msg);
+  pinState.entry = '';
+  setTimeout(updatePinUI, 250);
+}
+async function pinKey(k) {
+  if (k === 'cancel') { closePin(false); return; }
+  if (k === 'back') { pinState.entry = pinState.entry.slice(0, -1); updatePinUI(); return; }
+  if (pinState.entry.length >= 4) return;
+  pinState.entry += k;
+  updatePinUI();
+  if (pinState.entry.length < 4) return;
+  const entry = pinState.entry;
+  if (pinState.mode === 'check') {
+    if ((await hashPin(entry)) === settings.pinHash) closePin(true);
+    else pinShake('Code incorrect');
+  } else if (pinState.mode === 'create') {
+    Object.assign(pinState, { first: entry, entry: '', mode: 'confirm' });
+    setTimeout(updatePinUI, 150);
+  } else if (pinState.mode === 'confirm') {
+    if (entry !== pinState.first) { pinState.mode = 'create'; pinShake('Les deux codes sont différents, recommencez'); return; }
+    settings.pinHash = await hashPin(entry);
+    saveSettings();
+    toast('Code enregistré 🔒');
+    closePin(true);
+  }
 }
 
 /* ---------------------------------------------------------
@@ -1057,7 +1250,8 @@ function bind() {
     const row = e.target.closest('[data-i]');
     if (!row || !e.target.dataset.k) return;
     const f = settings.formulas[Number(row.dataset.i)];
-    f[e.target.dataset.k] = e.target.dataset.k === 'price' ? Number(e.target.value) || 0 : e.target.value.trim();
+    const k = e.target.dataset.k;
+    f[k] = ['price', 'photos', 'telethon'].includes(k) ? Number(e.target.value) || 0 : e.target.value.trim();
     saveSettings();
   });
   $('#formula-list').addEventListener('click', (e) => {
@@ -1067,10 +1261,39 @@ function bind() {
     saveSettings(); renderFormulaList();
   });
   $('#btn-add-formula').addEventListener('click', () => {
-    settings.formulas.push({ id: `f${Date.now()}`, name: 'Nouvelle formule', price: 0, link: '' });
+    settings.formulas.push({ id: `f${Date.now()}`, name: 'Nouvelle formule', photos: 1, price: 0, telethon: 0, link: '' });
     saveSettings(); renderFormulaList();
     const inputs = $$('#formula-list input[data-k="name"]');
     inputs[inputs.length - 1].select();
+  });
+  $('#pin-pad').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) pinKey(b.dataset.k); });
+  document.addEventListener('keydown', (e) => {
+    if ($('#pin').hidden) return;
+    if (/^[0-9]$/.test(e.key)) pinKey(e.key);
+    else if (e.key === 'Backspace') pinKey('back');
+    else if (e.key === 'Escape') pinKey('cancel');
+  });
+  $('#btn-change-pin').addEventListener('click', async () => {
+    const old = settings.pinHash;
+    if (!(await askPin('create'))) { settings.pinHash = old; }
+  });
+  $('#btn-lock').addEventListener('click', () => { settingsUnlocked = false; go('home'); });
+  $('#event-grid').addEventListener('change', (e) => {
+    const id = e.target.dataset.ev;
+    if (!id) return;
+    settings.eventActive = e.target.checked ? id : 'none'; // un seul événement actif à la fois
+    saveSettings(); renderEvents();
+    const ev = activeEvent();
+    toast(ev ? `${ev.name} activé (−${eventPct(ev.id)} %)` : 'Aucune réduction active');
+  });
+  $('#event-grid').addEventListener('change', (e) => {
+    const id = e.target.dataset.pct;
+    if (!id) return;
+    const v = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+    e.target.value = v;
+    settings.eventPct = { ...settings.eventPct, [id]: v };
+    saveSettings();
+    toast(`Réduction enregistrée : −${v} %`);
   });
   $('#btn-export-csv').addEventListener('click', async () => exportCSV(await db.clients()));
   $('#btn-clear-session').addEventListener('click', () => { newSession(); toast('Import vidé'); });

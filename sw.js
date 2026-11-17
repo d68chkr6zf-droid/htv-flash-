@@ -1,7 +1,7 @@
 /* HTV Flash : fonctionne hors ligne (cache de l'application) */
-const CACHE = 'htvflash-v1.0.0';
+const CACHE = 'htvflash-v1.2.0';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vendor/qrcode.js', 'manifest.webmanifest',
-  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
+  'icons/logo-htvflash.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
