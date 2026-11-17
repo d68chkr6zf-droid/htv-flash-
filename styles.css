@@ -433,3 +433,5 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
 .telethon-tile img { width: 100%; max-width: 260px; height: auto; }
 .telethon-tile span { color: #2b2b2b; font-weight: 800; font-size: 1.1rem; }
 .donation-icon img { width: 170px; height: auto; background: #fbf7ee; border-radius: 12px; padding: 8px 10px; display: block; }
+
+.link-mode { padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 15%, transparent); border: 1px solid var(--accent); font-size: .95rem; }

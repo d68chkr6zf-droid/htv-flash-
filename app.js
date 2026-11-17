@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -91,10 +91,10 @@ const DEFAULT_SETTINGS = {
   pinHash: '',
   // price = prix d'origine (avant réduction) ; telethon = montant reversé au Téléthon
   formulas: [
-    { id: 'f1', name: '🎅 Lutinette', photos: 1, price: 12, telethon: 2, link: '' },
-    { id: 'f2', name: '🎁 Étoile de Noël', photos: 2, price: 20, telethon: 3, link: '' },
-    { id: 'f3', name: '⛄ Flocon Magique', photos: 3, price: 28, telethon: 4, link: '' },
-    { id: 'f4', name: '🎄 Sphère Enchantée', photos: 5, price: 40, telethon: 5, link: '' },
+    { id: 'f1', name: '🎅 Lutinette', photos: 1, price: 12, telethon: 2, links: {} },
+    { id: 'f2', name: '🎁 Étoile de Noël', photos: 2, price: 20, telethon: 3, links: {} },
+    { id: 'f3', name: '⛄ Flocon Magique', photos: 3, price: 28, telethon: 4, links: {} },
+    { id: 'f4', name: '🎄 Sphère Enchantée', photos: 5, price: 40, telethon: 5, links: {} },
   ],
 };
 let settings = loadSettings();
@@ -104,7 +104,11 @@ function loadSettings() {
     s.eventPct = { ...DEFAULT_SETTINGS.eventPct, ...s.eventPct };
     if (s.formulas.some((f) => f.photos === undefined)) s.formulas = DEFAULT_SETTINGS.formulas;
     const renamed = { '🎁 Duo de Rennes': '🎁 Étoile de Noël', '⛄ Trio Enneigé': '⛄ Flocon Magique', '🎄 Pack Magie de Noël': '🎄 Sphère Enchantée' };
-    s.formulas.forEach((f) => { if (renamed[f.name]) f.name = renamed[f.name]; });
+    s.formulas.forEach((f) => {
+      if (renamed[f.name]) f.name = renamed[f.name];
+      if (!f.links) f.links = {};
+      if (f.link) { f.links.none = f.links.none || f.link; delete f.link; }
+    });
     return s;
   }
   catch { return { ...DEFAULT_SETTINGS }; }
@@ -119,7 +123,7 @@ function saveSettings() {
 const EVENTS = [
   { id: 'telethon', name: 'Téléthon', emoji: '💛', note: 'Réduction + montant reversé au Téléthon selon la formule' },
   { id: 'mariage', name: 'Mariage', emoji: '💍', note: 'Réduction sur les formules' },
-  { id: 'fete-locale', name: 'Fêtes locales', emoji: '🎪', note: 'Réduction sur les formules' },
+  { id: 'fete-locale', name: 'Événement', emoji: '🎉', note: 'Réduction sur les formules' },
 ];
 const activeEvent = () => EVENTS.find((e) => e.id === settings.eventActive) || null;
 const eventPct = (id) => Number(settings.eventPct?.[id]) || 0;
@@ -837,13 +841,20 @@ function showPayDonation() {
   }
   el.textContent = `${pe.ev.emoji} ${parts.join(' · ')}`;
 }
+// lien SumUp de la formule pour le mode en cours (sans réduction, Téléthon, Mariage, Événement)
+const linkMode = (evId) => evId || 'none';
+const formulaLink = (f, evId) => (f && f.links && f.links[linkMode(evId)]) || '';
+function payLink() {
+  const f = currentFormula();
+  return formulaLink(f, payEvent()?.ev?.id) || settings.sumupLink;
+}
 function currentFormula() { return settings.formulas.find((f) => f.id === payState.formula) || null; }
 function refreshPayOutputs() {
   const amt = Number(String(payState.amount).replace(',', '.')) || 0;
   $('#pay-total', payNode).textContent = euro(amt);
   showPayDonation();
   const f = currentFormula();
-  const link = (f && f.link) || settings.sumupLink;
+  const link = payLink();
   const qrWrap = $('#pay-qr-wrap', payNode);
   qrWrap.hidden = !link;
   if (link) {
@@ -871,8 +882,7 @@ function bindPay(node) {
   });
   $('#pay-amount', node).addEventListener('input', (e) => { payState.amount = e.target.value; refreshPayOutputs(); });
   $('#pay-open-link', node).addEventListener('click', () => {
-    const f = currentFormula();
-    const link = (f && f.link) || settings.sumupLink;
+    const link = payLink();
     if (link) window.open(link, '_blank', 'noopener');
   });
   $('#pay-sumup-app', node).addEventListener('click', openSumUpApp);
@@ -1044,15 +1054,17 @@ function renderEvents() {
 }
 function renderFormulaList() {
   const th = THEMES.find((t) => t.id === currentThemeId());
+  const ev = activeEvent();
   $('#formula-list').innerHTML = `<p class="muted small">Les noms suivent le thème choisi (actuellement : ${esc(th ? `${th.emoji} ${th.name}` : '')}). Un nom modifié ici ne change que pour ce thème ; effacez-le pour revenir au nom proposé.</p>
-    <div class="formula-row head"><span>Nom</span><span>Photos</span><span>Prix d'origine</span><span>Reversé Téléthon</span><span>Lien SumUp (facultatif)</span><span></span></div>` +
+    <p class="link-mode">🔗 Liens SumUp affichés pour : <b>${esc(ev ? `${ev.emoji} ${ev.name}, prix réduits de ${eventPct(ev.id)} %` : 'sans réduction (prix d\'origine)')}</b>. Activez une autre réduction ci-dessus pour saisir ses liens.</p>
+    <div class="formula-row head"><span>Nom</span><span>Photos</span><span>Prix d'origine</span><span>Reversé Téléthon</span><span>Lien SumUp · ${esc(activeEvent() ? `${activeEvent().name} (−${eventPct(activeEvent().id)} %)` : 'sans réduction')}</span><span></span></div>` +
     settings.formulas.map((f, i) => `
     <div class="formula-row" data-i="${i}">
       <input data-k="name" value="${esc(formulaName(f))}" placeholder="Nom de la formule">
       <input data-k="photos" type="number" inputmode="numeric" min="1" step="1" value="${esc(f.photos ?? 1)}" aria-label="Nombre de photos">
       <input data-k="price" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.price)}" aria-label="Prix d'origine en euros">
       <input data-k="telethon" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.telethon ?? 0)}" aria-label="Montant reversé au Téléthon">
-      <input data-k="link" type="url" value="${esc(f.link)}" placeholder="https://pay.sumup.com/…">
+      <input data-k="link" type="url" value="${esc(formulaLink(f, activeEvent()?.id))}" placeholder="Lien SumUp à ${euro(activeEvent() ? discounted(f.price, eventPct(activeEvent().id)) : f.price)}">
       <button class="icon-btn" data-del="${i}" aria-label="Supprimer">🗑</button>
     </div>`).join('');
 }
@@ -1292,6 +1304,12 @@ function bind() {
       saveSettings(); renderFormulaList();
       return;
     }
+    if (k === 'link') {
+      f.links = { ...(f.links || {}), [linkMode(activeEvent()?.id)]: e.target.value.trim() };
+      saveSettings();
+      toast(`Lien SumUp enregistré (${activeEvent() ? activeEvent().name : 'sans réduction'})`);
+      return;
+    }
     f[k] = ['price', 'photos', 'telethon'].includes(k) ? Number(e.target.value) || 0 : e.target.value.trim();
     saveSettings();
   });
@@ -1302,7 +1320,7 @@ function bind() {
     saveSettings(); renderFormulaList();
   });
   $('#btn-add-formula').addEventListener('click', () => {
-    settings.formulas.push({ id: `f${Date.now()}`, name: 'Nouvelle formule', photos: 1, price: 0, telethon: 0, link: '' });
+    settings.formulas.push({ id: `f${Date.now()}`, name: 'Nouvelle formule', photos: 1, price: 0, telethon: 0, links: {} });
     saveSettings(); renderFormulaList();
     const inputs = $$('#formula-list input[data-k="name"]');
     inputs[inputs.length - 1].select();
@@ -1323,7 +1341,7 @@ function bind() {
     const id = e.target.dataset.ev;
     if (!id) return;
     settings.eventActive = e.target.checked ? id : 'none'; // un seul événement actif à la fois
-    saveSettings(); renderEvents();
+    saveSettings(); renderEvents(); renderFormulaList();
     const ev = activeEvent();
     toast(ev ? `${ev.name} activé (−${eventPct(ev.id)} %)` : 'Aucune réduction active');
   });
@@ -1335,6 +1353,7 @@ function bind() {
     settings.eventPct = { ...settings.eventPct, [id]: v };
     saveSettings();
     toast(`Réduction enregistrée : −${v} %`);
+    renderFormulaList();
   });
   $('#btn-export-csv').addEventListener('click', async () => exportCSV(await db.clients()));
   $('#btn-clear-session').addEventListener('click', () => { newSession(); toast('Import vidé'); });

@@ -21,7 +21,11 @@ Les réglages ⚙️ sont protégés par un code à 4 chiffres, créé à la pre
 
 Chaque formule a un nom, un nombre de photos, un **prix d'origine** et un **montant reversé au Téléthon**. Par défaut : Lutinette (1 photo, 12 €, 2 €), Étoile de Noël (2 photos, 20 €, 3 €), Flocon Magique (3 photos, 28 €, 4 €), Sphère Enchantée (5 photos, 40 €, 5 €).
 
-Dans « Réduction pour association et événement », un interrupteur par événement (un seul actif à la fois) : **Téléthon** (−50 % par défaut + montant reversé par formule), **Mariage** et **Fêtes locales** (pourcentage de réduction modifiable).
+Dans « Réduction pour association et événement », un interrupteur par événement (un seul actif à la fois) : **Téléthon** (−50 % par défaut + montant reversé par formule), **Mariage** et **Événement** (pourcentage de réduction modifiable).
+
+## Liens SumUp par formule
+
+Chaque formule a un lien SumUp différent selon la réduction active : sans réduction, Téléthon, Mariage, Événement. Activez la réduction dans les réglages, puis collez les liens de ses formules (le prix réduit est affiché). Au paiement, l'appli prend automatiquement le bon lien ; à défaut, le lien SumUp par défaut.
 
 ## Thèmes
 
