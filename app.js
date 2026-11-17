@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,18 +32,18 @@ const THEMES = [
 
 // Noms des formules selon le thème (1 photo, 2 photos, 3 photos, 5 photos)
 const FORMULA_NAMES = {
-  classique: ['✨ Éclat', '🌟 Duo Prestige', '💫 Trio Lumière', '👑 Collection Or'],
-  clair: ['🤍 Instant Pur', '🕊️ Duo Douceur', '☁️ Trio Lumineux', '💎 Collection Signature'],
-  hiver: ['❄️ Cristal de Givre', '⛸️ Duo Patineurs', '🏔️ Trio des Cimes', '🌨️ Grand Blanc'],
-  printemps: ['🌸 Bourgeon', '🌷 Duo Floral', '🦋 Trio Papillon', '💐 Bouquet de Printemps'],
-  ete: ['☀️ Rayon de Soleil', '🌊 Duo Vague', '🍹 Trio Tropical', '🌴 Évasion d\'Été'],
-  automne: ['🍂 Feuille d\'Or', '🍁 Duo Érable', '🌰 Trio Châtaigne', '🍄 Forêt Enchantée'],
-  halloween: ['🎃 Petite Citrouille', '👻 Duo Fantôme', '🦇 Trio Vampire', '🧙 Grimoire Ensorcelé'],
+  classique: ['✨ Éclat', '🌟 Prestige', '💫 Lumière', '👑 Couronne d\'Or'],
+  clair: ['🤍 Pureté', '🕊️ Douceur', '☁️ Nuage', '💎 Signature'],
+  hiver: ['❄️ Cristal de Givre', '⛸️ Patinoire', '🏔️ Cime Enneigée', '🌨️ Grand Blanc'],
+  printemps: ['🌸 Bourgeon', '🌷 Tulipe', '🦋 Papillon', '💐 Bouquet de Printemps'],
+  ete: ['☀️ Rayon de Soleil', '🌊 Vague', '🍹 Tropique', '🌴 Évasion d\'Été'],
+  automne: ['🍂 Feuille d\'Or', '🍁 Érable', '🌰 Châtaigne', '🍄 Forêt Enchantée'],
+  halloween: ['🎃 Petite Citrouille', '👻 Fantôme', '🦇 Chauve-Souris', '🧙 Grimoire Ensorcelé'],
   noel: ['🎅 Lutinette', '🎁 Étoile de Noël', '⛄ Flocon Magique', '🎄 Sphère Enchantée'],
-  'nouvel-an': ['🥂 Coupe Pétillante', '🎉 Duo Confettis', '✨ Trio Paillettes', '🎆 Feu d\'Artifice'],
-  'saint-valentin': ['💌 Mot Doux', '💕 Duo Complice', '🌹 Trio Passion', '💘 Coup de Foudre'],
-  paques: ['🐣 Petit Poussin', '🐰 Duo Lapins', '🌷 Trio Printanier', '🥚 Œuf d\'Or'],
-  mariage: ['💍 Alliance', '🥂 Duo des Mariés', '💐 Trio Bouquet', '👰 Grand Jour'],
+  'nouvel-an': ['🍾 Bulles', '🎉 Confettis', '✨ Paillettes', '🎆 Feu d\'Artifice'],
+  'saint-valentin': ['💌 Mot Doux', '💕 Tendresse', '🌹 Passion', '💘 Coup de Foudre'],
+  paques: ['🐣 Petit Poussin', '🐰 Lapin Malin', '🌷 Jardin Fleuri', '🥚 Œuf d\'Or'],
+  mariage: ['💍 Alliance', '🥂 Serment', '💐 Bouquet', '👰 Grand Jour'],
 };
 const currentThemeId = () => (settings.theme === 'auto' ? themeForDate() : settings.theme);
 // nom affiché : nom personnalisé pour ce thème, sinon nom du thème, sinon nom saisi
