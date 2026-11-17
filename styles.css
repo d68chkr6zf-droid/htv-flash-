@@ -89,7 +89,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; width: 100%
 .brand { display: flex; align-items: center; }
 .brand-logo { height: 56px; width: auto; display: block; }
 [data-theme="clair"] .brand-logo, [data-theme="printemps"] .brand-logo, [data-theme="ete"] .brand-logo,
-[data-theme="paques"] .brand-logo, [data-theme="mariage"] .brand-logo { filter: invert(1); }
+[data-theme="paques"] .brand-logo, [data-theme="mariage"] .brand-logo { content: url("icons/logo-htvflash-light.svg"); }
 .brand-htv { font-size: 1.8rem; }
 .brand-flash {
   font-size: .9rem; padding: 2px 8px; border-radius: 8px; transform: rotate(-6deg) translateY(-6px);
