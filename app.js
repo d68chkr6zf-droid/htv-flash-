@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.6.5';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -261,7 +261,7 @@ const RAW_EXT = ['cr2', 'cr3', 'nef', 'nrw', 'arw', 'srf', 'sr2', 'raf', 'orf', 
 const ext = (n) => (n.split('.').pop() || '').toLowerCase();
 const stem = (n) => n.replace(/\.[^.]+$/, '');
 
-const session = { source: '', photos: [] };
+const session = { source: '', photos: [], sdDir: null, sdFiles: [] };
 // photo = { id, name, file, raw (File|null), thumb (url|null), selected }
 
 async function walkDir(dir, path, out) {
@@ -271,7 +271,7 @@ async function walkDir(dir, path, out) {
     else {
       const e = ext(name);
       if (IMG_EXT.includes(e) || RAW_EXT.includes(e)) {
-        out.push({ path: path + name, name, file: await h.getFile() });
+        out.push({ path: path + name, name, file: await h.getFile(), parent: dir });
         if (out.length % 25 === 0) busy(true, `Lecture de la carte… ${out.length} fichiers`);
       }
     }
@@ -301,13 +301,16 @@ function groupFiles(entries) {
 async function pickSD() {
   if (!hasFS) { $('#input-fallback').click(); return; }
   let dir;
-  try { dir = await window.showDirectoryPicker({ id: 'microsd', mode: 'read' }); }
+  try { dir = await window.showDirectoryPicker({ id: 'microsd', mode: 'readwrite' }); }
   catch (e) { if (e.name !== 'AbortError') toast("Impossible d'ouvrir la carte."); return; }
   busy(true, 'Lecture de la carte…');
   try {
     const entries = [];
     await walkDir(dir, '', entries);
     loadSession(dir.name, groupFiles(entries));
+    // fichiers lus sur la carte : effacés à la fin si le photographe le demande
+    session.sdDir = dir;
+    session.sdFiles = entries.map((e) => ({ parent: e.parent, name: e.name }));
   } catch (e) {
     console.error(e);
     toast('Erreur de lecture : la carte a-t-elle été retirée ?');
@@ -318,6 +321,8 @@ function loadSession(source, photos, quiet = false) {
   session.photos.forEach((p) => p.thumb && URL.revokeObjectURL(p.thumb));
   session.source = source;
   session.photos = photos;
+  session.sdDir = null;
+  session.sdFiles = [];
   renderImport();
   if (quiet) return;
   if (!photos.length) toast('Aucune photo trouvée sur cette carte.');
@@ -1310,7 +1315,9 @@ function bind() {
   $('#wiz-next').addEventListener('click', wizNext);
   $('#wiz-prev').addEventListener('click', wizPrev);
   $('#btn-new-session').addEventListener('click', () => { newSession(); go('wizard', 1); });
-  $('#btn-done-home').addEventListener('click', () => { newSession(); go('home'); });
+  $('#btn-done-home').addEventListener('click', () => askWipeCard());
+  $('#wipe-cancel').addEventListener('click', () => { $('#wipe').hidden = true; });
+  $('#wipe-ok').addEventListener('click', () => wipeCard());
 
   // Visionneuse
   $('#viewer-close').addEventListener('click', closeViewer);
@@ -1476,3 +1483,34 @@ function bind() {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW', e));
   }
 })();
+
+/* ---------- Fin : vider la carte microSD et revenir à l'accueil ---------- */
+function askWipeCard() {
+  const n = session.sdFiles.length;
+  if (!n || !session.sdDir || !wiz.savedId) { newSession(); go('home'); return; }
+  $('#wipe-sub').textContent = `${n} fichier(s) vont être supprimés de la carte « ${session.source} ». Les photos choisies sont déjà copiées dans le dossier du client ; les autres seront perdues.`;
+  $('#wipe').hidden = false;
+}
+async function wipeCard() {
+  $('#wipe').hidden = true;
+  const dir = session.sdDir;
+  try {
+    if ((await dir.queryPermission({ mode: 'readwrite' })) !== 'granted' &&
+        (await dir.requestPermission({ mode: 'readwrite' })) !== 'granted') {
+      toast("La carte n'a pas été vidée : autorisation de modification refusée.", 4000);
+      return;
+    }
+  } catch (e) { toast("La carte n'a pas été vidée : la carte a-t-elle été retirée ?", 4000); return; }
+  const files = session.sdFiles;
+  let done = 0, failed = 0;
+  busy(true, 'Effacement de la carte…', 0);
+  for (const f of files) {
+    try { await f.parent.removeEntry(f.name); done++; } catch (e) { console.error(e); failed++; }
+    busy(true, 'Effacement de la carte…', (done + failed) / files.length);
+  }
+  busy(false);
+  if (failed) toast(`${done} fichier(s) supprimé(s), ${failed} n'ont pas pu l'être.`, 4500);
+  else toast(`Carte vidée : ${done} fichier(s) supprimé(s). Vous pouvez la remettre dans l'appareil 📸`, 4500);
+  newSession();
+  go('home');
+}
