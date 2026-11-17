@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.6.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -338,28 +338,93 @@ async function pumpThumbs() {
     const { photo, img } = thumbQueue.shift();
     if (photo.thumb) { img.src = photo.thumb; continue; }
     thumbRunning++;
-    makeThumb(photo.file, 360).then((url) => {
+    makeThumb(photo, 360).then((url) => {
       photo.thumb = url;
       $$(`img[data-pid="${photo.id}"]`).forEach((el) => { el.src = url; });
     }).catch(() => { photo.thumbFailed = true; img.replaceWith(Object.assign(document.createElement('span'), { className: 'ph-raw', textContent: ext(photo.name).toUpperCase() })); })
       .finally(() => { thumbRunning--; pumpThumbs(); });
   }
 }
-async function makeThumb(file, width) {
-  const bmp = await createImageBitmap(file, { resizeWidth: width, resizeQuality: 'medium' });
+/* ---------- Aperçu des fichiers RAW (NEF, CR2, CR3, ARW, DNG, RAF…) ----------
+   Les appareils enregistrent un aperçu JPEG dans chaque RAW : on prend le plus grand. */
+function jpegEnd(b, s) {
+  const n = b.length;
+  let p = s + 2;
+  while (p < n - 3) {
+    if (b[p] !== 0xFF) return -1;
+    let m = b[p + 1];
+    while (m === 0xFF && p < n - 2) { p++; m = b[p + 1]; }
+    if (m === 0xD9) return p + 2;
+    if ((m >= 0xD0 && m <= 0xD7) || m === 0x01) { p += 2; continue; }
+    const len = (b[p + 2] << 8) | b[p + 3];
+    if (len < 2) return -1;
+    p += 2 + len;
+    if (m === 0xDA) { // données compressées : on cherche le marqueur suivant
+      while (p < n - 1) {
+        if (b[p] === 0xFF && b[p + 1] !== 0 && !(b[p + 1] >= 0xD0 && b[p + 1] <= 0xD7)) break;
+        p++;
+      }
+    }
+  }
+  return -1;
+}
+function tiffOrientation(b) {
+  const le = b[0] === 0x49 && b[1] === 0x49;
+  const be = b[0] === 0x4D && b[1] === 0x4D;
+  if (!le && !be) return 1;
+  const u16 = (o) => (le ? b[o] | (b[o + 1] << 8) : (b[o] << 8) | b[o + 1]);
+  const u32 = (o) => (le ? (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16)) + b[o + 3] * 16777216 : b[o] * 16777216 + ((b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]));
+  const ifd = u32(4);
+  if (ifd + 2 > b.length) return 1;
+  const count = u16(ifd);
+  for (let i = 0; i < count; i++) {
+    const e = ifd + 2 + i * 12;
+    if (u16(e) === 0x0112) return u16(e + 8) || 1;
+  }
+  return 1;
+}
+async function rawPreview(file) {
+  const b = new Uint8Array(await file.arrayBuffer());
+  let best = null;
+  for (let i = 0; i < b.length - 3; i++) {
+    if (b[i] !== 0xFF || b[i + 1] !== 0xD8 || b[i + 2] !== 0xFF) continue;
+    const end = jpegEnd(b, i);
+    if (end > i) {
+      if (!best || end - i > best[1] - best[0]) best = [i, end];
+      i = end - 1; // on saute ce JPEG (et la miniature qu'il contient)
+    }
+  }
+  if (!best || best[1] - best[0] < 10000) throw new Error('Pas d\'aperçu dans ce RAW');
+  return { blob: new Blob([b.subarray(best[0], best[1])], { type: 'image/jpeg' }), orientation: tiffOrientation(b) };
+}
+// image affichable d'une photo (JPEG direct, ou aperçu extrait du RAW) + rotation à appliquer
+async function displaySource(photo) {
+  if (!photo.rawOnly) return { blob: photo.file, orientation: 1 };
+  return rawPreview(photo.file);
+}
+
+async function makeThumb(photoOrFile, width) {
+  const photo = photoOrFile instanceof Blob ? { file: photoOrFile, rawOnly: false } : photoOrFile;
+  const { blob, orientation } = await displaySource(photo);
+  const bmp = await createImageBitmap(blob, { resizeWidth: width, resizeQuality: 'medium', ...(photo.rawOnly ? { imageOrientation: 'none' } : {}) });
+  const rot = orientation === 6 || orientation === 8;
   const c = document.createElement('canvas');
-  c.width = bmp.width; c.height = bmp.height;
-  c.getContext('2d').drawImage(bmp, 0, 0);
+  c.width = rot ? bmp.height : bmp.width; c.height = rot ? bmp.width : bmp.height;
+  const ctx = c.getContext('2d');
+  if (orientation === 6) { ctx.translate(c.width, 0); ctx.rotate(Math.PI / 2); }
+  else if (orientation === 8) { ctx.translate(0, c.height); ctx.rotate(-Math.PI / 2); }
+  else if (orientation === 3) { ctx.translate(c.width, c.height); ctx.rotate(Math.PI); }
+  ctx.drawImage(bmp, 0, 0);
   bmp.close && bmp.close();
-  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', .8));
-  return URL.createObjectURL(blob);
+  const out = await new Promise((r) => c.toBlob(r, 'image/jpeg', .8));
+  return URL.createObjectURL(out);
 }
 const io = 'IntersectionObserver' in window ? new IntersectionObserver((ents) => {
   for (const en of ents) {
     if (!en.isIntersecting) continue;
     io.unobserve(en.target);
     const { photo } = en.target._ph;
-    if (!photo.rawOnly) requestThumb(photo, en.target);
+    requestThumb(photo, en.target);
   }
 }, { rootMargin: '400px' }) : null;
 
@@ -368,7 +433,7 @@ function photoTile(photo, { selectable = false, list = [] } = {}) {
   b.type = 'button';
   b.className = `ph${photo.selected && selectable ? ' sel' : ''}`;
   b.dataset.pid = photo.id;
-  if (photo.rawOnly || photo.thumbFailed) {
+  if (photo.thumbFailed) {
     b.innerHTML = `<span class="ph-raw">${esc(ext(photo.name).toUpperCase())}</span>`;
   } else {
     const img = document.createElement('img');
@@ -378,7 +443,7 @@ function photoTile(photo, { selectable = false, list = [] } = {}) {
     b.appendChild(img);
     if (photo.thumb) img.src = photo.thumb; else if (io) io.observe(img); else requestThumb(photo, img);
   }
-  b.insertAdjacentHTML('beforeend', `<span class="ph-name">${esc(photo.name)}${photo.raw ? ' + RAW' : ''}</span>${selectable ? '<span class="ph-check">✓</span>' : ''}`);
+  b.insertAdjacentHTML('beforeend', `<span class="ph-name">${esc(photo.name)}${photo.raw ? ' + RAW' : ''}</span>${photo.rawOnly ? '<span class="ph-badge">RAW</span>' : ''}${selectable ? '<span class="ph-check">✓</span>' : ''}`);
 
   // appui court = sélectionner (si sélectionnable) ; appui long = agrandir
   let timer, long = false;
@@ -432,9 +497,23 @@ function showViewer() {
   const p = viewer.list[viewer.idx];
   if (!p) return;
   if (viewer.url) URL.revokeObjectURL(viewer.url);
-  viewer.url = p.rawOnly ? null : URL.createObjectURL(p.file);
-  $('#viewer-img').src = viewer.url || '';
-  $('#viewer-img').alt = p.rawOnly ? 'Fichier RAW : aperçu impossible' : p.name;
+  viewer.url = null;
+  const img = $('#viewer-img');
+  img.style.transform = '';
+  img.classList.remove('rot');
+  img.alt = p.name;
+  if (!p.rawOnly) { viewer.url = URL.createObjectURL(p.file); img.src = viewer.url; }
+  else {
+    img.src = p.thumb || '';
+    const token = (viewer.token = (viewer.token || 0) + 1);
+    rawPreview(p.file).then(({ blob, orientation }) => {
+      if (token !== viewer.token) return;
+      viewer.url = URL.createObjectURL(blob);
+      img.src = viewer.url;
+      const deg = { 3: 180, 6: 90, 8: -90 }[orientation];
+      if (deg) { img.style.transform = `rotate(${deg}deg)`; if (deg !== 180) img.classList.add('rot'); }
+    }).catch(() => { if (token === viewer.token) toast('Aperçu indisponible pour ce fichier RAW'); });
+  }
   $('#viewer-name').textContent = `${viewer.idx + 1} / ${viewer.list.length} · ${p.name}`;
   const tg = $('#viewer-toggle');
   tg.hidden = !viewer.selectable;
@@ -562,9 +641,9 @@ async function copyPhotosTo(dir, photos, label) {
 }
 
 async function thumbDataFor(photo) {
-  if (!photo || photo.rawOnly) return '';
+  if (!photo) return '';
   try {
-    const url = await makeThumb(photo.file, 180);
+    const url = await makeThumb(photo, 180);
     const blob = await (await fetch(url)).blob();
     URL.revokeObjectURL(url);
     return await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
@@ -1012,12 +1091,15 @@ async function loadDetailPhotos(c, ask) {
     try {
       const d = await dir.getDirectoryHandle(sub);
       for await (const [name, h] of d.entries()) {
-        if (h.kind === 'file' && IMG_EXT.includes(ext(name))) entries.push({ name: sub === '2-Retouchees' ? `✨ ${name}` : name, file: await h.getFile() });
+        if (h.kind === 'file' && (IMG_EXT.includes(ext(name)) || RAW_EXT.includes(ext(name)))) entries.push({ name: sub === '2-Retouchees' ? `✨ ${name}` : name, file: await h.getFile() });
       }
     } catch { /* sous-dossier absent */ }
   }
   if (token !== detailToken) return; // un autre affichage a démarré entre-temps
-  detailPhotos = entries.map((e, i) => ({ id: `d${i}`, name: e.name, file: e.file, raw: null, rawOnly: false, thumb: null, selected: false }));
+  // un RAW accompagné de son JPEG n'est pas affiché deux fois
+  const jpegStems = new Set(entries.filter((e) => IMG_EXT.includes(ext(e.name))).map((e) => stem(e.name).toLowerCase()));
+  const shown = entries.filter((e) => IMG_EXT.includes(ext(e.name)) || !jpegStems.has(stem(e.name).toLowerCase()));
+  detailPhotos = shown.map((e, i) => ({ id: `d${i}`, name: e.name, file: e.file, raw: null, rawOnly: RAW_EXT.includes(ext(e.name)), thumb: null, selected: false }));
   if (!detailPhotos.length) { empty.hidden = false; empty.textContent = 'Aucune photo dans ce dossier.'; }
   const frag = document.createDocumentFragment();
   detailPhotos.forEach((p) => frag.appendChild(photoTile(p, { list: detailPhotos })));

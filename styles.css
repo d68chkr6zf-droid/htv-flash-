@@ -438,3 +438,6 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
 
 .reduced-price { font-weight: 900; font-size: 1.2rem; color: var(--accent); text-align: center; }
 @media (max-width: 900px) { .formula-row[style] { grid-template-columns: 1fr 1fr 1fr !important; } }
+
+.ph .ph-badge { position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 8px; font-size: .7rem; font-weight: 800; background: rgba(0,0,0,.6); color: #fff; }
+.viewer img.rot { max-width: 82vh; max-height: 92vw; }

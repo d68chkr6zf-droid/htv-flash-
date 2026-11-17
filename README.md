@@ -4,7 +4,7 @@ Application tactile pour gérer les photos des clients pendant les séances phot
 
 ## Le parcours client, étape par étape
 
-1. **Carte microSD** : le photographe insère la carte du client et l'application lit toutes les photos (y compris les dossiers DCIM). Les fichiers RAW (CR3, NEF, ARW…) sont associés à leur JPEG.
+1. **Carte microSD** : le photographe insère la carte du client et l'application lit toutes les photos (y compris les dossiers DCIM). Les fichiers RAW (CR3, NEF, ARW…) sont associés à leur JPEG ; s'il n'y a que le RAW, l'appli affiche l'aperçu JPEG intégré au fichier par l'appareil.
 2. **Choix des photos** : le client touche les photos qu'il veut garder (appui long pour agrandir, glisser pour faire défiler).
 3. **Coordonnées** : nom, prénom, e-mail, n° de portable. Si un événement est actif, la formule correspondante, son prix réduit et le montant reversé au Téléthon s'affichent en haut.
 4. **Droit à l'image** : « J'accepte » ou « Je refuse » (le texte se modifie dans les réglages).
