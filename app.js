@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1055,16 +1055,25 @@ function renderEvents() {
 function renderFormulaList() {
   const th = THEMES.find((t) => t.id === currentThemeId());
   const ev = activeEvent();
-  $('#formula-list').innerHTML = `<p class="muted small">Les noms suivent le thème choisi (actuellement : ${esc(th ? `${th.emoji} ${th.name}` : '')}). Un nom modifié ici ne change que pour ce thème ; effacez-le pour revenir au nom proposé.</p>
-    <p class="link-mode">🔗 Liens SumUp affichés pour : <b>${esc(ev ? `${ev.emoji} ${ev.name}, prix réduits de ${eventPct(ev.id)} %` : 'sans réduction (prix d\'origine)')}</b>. Activez une autre réduction ci-dessus pour saisir ses liens.</p>
-    <div class="formula-row head"><span>Nom</span><span>Photos</span><span>Prix d'origine</span><span>Reversé Téléthon</span><span>Lien SumUp · ${esc(activeEvent() ? `${activeEvent().name} (−${eventPct(activeEvent().id)} %)` : 'sans réduction')}</span><span></span></div>` +
+  const pct = ev ? eventPct(ev.id) : 0;
+  const isTel = ev?.id === 'telethon';
+  $('#formula-title').textContent = ev ? `Formules · prix ${ev.name}` : 'Formules · prix normal';
+  // colonnes : nom, photos, prix d'origine, [prix réduit], [reversé Téléthon], lien, supprimer
+  const cols = ['1.5fr', '.55fr', '.75fr', ...(ev ? ['.8fr'] : []), ...(isTel ? ['.75fr'] : []), '1.6fr', 'auto'].join(' ');
+  const style = `style="grid-template-columns:${cols}"`;
+  $('#formula-list').innerHTML = `<p class="link-mode">${ev
+    ? `${ev.emoji} <b>${esc(ev.name)} activé : prix réduits de ${pct} %.</b> Les liens SumUp ci-dessous sont ceux des prix ${esc(ev.name)}.`
+    : '<b>Aucune réduction : prix normaux.</b> Les liens SumUp ci-dessous sont ceux des prix normaux.'} Cochez une autre réduction plus haut pour voir ses prix et ses liens.</p>
+    <p class="muted small">Les noms suivent le thème choisi (actuellement : ${esc(th ? `${th.emoji} ${th.name}` : '')}). Un nom modifié ici ne change que pour ce thème.</p>
+    <div class="formula-row head" ${style}><span>Nom</span><span>Photos</span><span>Prix d'origine</span>${ev ? `<span>Prix ${esc(ev.name)}</span>` : ''}${isTel ? '<span>Reversé Téléthon</span>' : ''}<span>Lien SumUp${ev ? ` · ${esc(ev.name)}` : ' · prix normal'}</span><span></span></div>` +
     settings.formulas.map((f, i) => `
-    <div class="formula-row" data-i="${i}">
+    <div class="formula-row" data-i="${i}" ${style}>
       <input data-k="name" value="${esc(formulaName(f))}" placeholder="Nom de la formule">
       <input data-k="photos" type="number" inputmode="numeric" min="1" step="1" value="${esc(f.photos ?? 1)}" aria-label="Nombre de photos">
       <input data-k="price" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.price)}" aria-label="Prix d'origine en euros">
-      <input data-k="telethon" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.telethon ?? 0)}" aria-label="Montant reversé au Téléthon">
-      <input data-k="link" type="url" value="${esc(formulaLink(f, activeEvent()?.id))}" placeholder="Lien SumUp à ${euro(activeEvent() ? discounted(f.price, eventPct(activeEvent().id)) : f.price)}">
+      ${ev ? `<span class="reduced-price">${euro(discounted(f.price, pct))}</span>` : ''}
+      ${isTel ? `<input data-k="telethon" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.telethon ?? 0)}" aria-label="Montant reversé au Téléthon">` : ''}
+      <input data-k="link" type="url" value="${esc(formulaLink(f, ev?.id))}" placeholder="Lien SumUp à ${euro(ev ? discounted(f.price, pct) : f.price)}">
       <button class="icon-btn" data-del="${i}" aria-label="Supprimer">🗑</button>
     </div>`).join('');
 }
@@ -1311,6 +1320,7 @@ function bind() {
       return;
     }
     f[k] = ['price', 'photos', 'telethon'].includes(k) ? Number(e.target.value) || 0 : e.target.value.trim();
+    if (k === 'price') { saveSettings(); renderFormulaList(); return; }
     saveSettings();
   });
   $('#formula-list').addEventListener('click', (e) => {
