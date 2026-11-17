@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -781,7 +781,6 @@ function renderRecap() {
   const sel = session.photos.filter((p) => p.selected);
   const saved = Boolean(wiz.savedId);
   $('#recap').hidden = saved;
-  $('#wiz-folder-card').hidden = saved;
   $('#saved-ok').hidden = !saved;
   if (saved) return;
   $('#recap').innerHTML = `
