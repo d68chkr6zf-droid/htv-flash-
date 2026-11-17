@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -883,8 +883,16 @@ async function renderPay(where = current === 'wizard' ? 'wizard' : 'direct', pre
     payState.amount = String(discounted(currentFormula().price, payPct()));
   }
   const pct = payPct();
+  // dans le parcours client, la formule découle des photos choisies : les autres sont grisées
+  const locked = where === 'wizard' && c && c.formulaId && !c.paid && settings.formulas.some((f) => f.id === c.formulaId);
+  if (locked && payState.formula !== c.formulaId) {
+    payState.formula = c.formulaId;
+    payState.amount = String(discounted(currentFormula().price, pct));
+  }
+  payNode.classList.toggle('pay-locked', Boolean(locked));
+  $('#pay-amount', payNode).readOnly = Boolean(locked);
   $('#pay-formulas', payNode).innerHTML = sortedFormulas().map((f) => `
-    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(formulaName(f))}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
+    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}${locked && f.id !== c.formulaId ? ' off' : ''}" data-fid="${f.id}"${locked && f.id !== c.formulaId ? ' disabled' : ''}><b>${esc(formulaName(f))}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
     + (payEvent()?.ev?.id === 'telethon' ? '<div class="telethon-tile"><img src="icons/telethon.svg" alt="Téléthon"><span id="tt-amount"></span></div>' : '');
   $('#pay-amount', payNode).value = payState.amount;
   $('#pay-state', payNode).textContent = c && c.paid ? `✅ Déjà payé : ${euro(c.amount)} (${c.payMethod === 'cash' ? 'espèces' : 'carte'})` : '';
@@ -951,7 +959,7 @@ function bindPay(node) {
   $('#pay-client', node).addEventListener('change', (e) => { payState.clientId = e.target.value; renderPay(); });
   $('#pay-formulas', node).addEventListener('click', (e) => {
     const b = e.target.closest('[data-fid]');
-    if (!b) return;
+    if (!b || b.disabled) return;
     payState.formula = b.dataset.fid;
     payState.amount = String(discounted(currentFormula().price, payPct()));
     $$('.formula', node).forEach((x) => x.classList.toggle('on', x === b));

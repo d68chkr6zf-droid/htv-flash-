@@ -441,3 +441,6 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
 
 .ph .ph-badge { position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 8px; font-size: .7rem; font-weight: 800; background: rgba(0,0,0,.6); color: #fff; }
 .viewer img.rot { max-width: 82vh; max-height: 92vw; }
+
+.formula.off { opacity: .28; filter: grayscale(1); pointer-events: none; }
+.pay-locked #pay-amount { opacity: .7; pointer-events: none; }
