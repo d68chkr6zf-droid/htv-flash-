@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -29,6 +29,31 @@ const THEMES = [
   { id: 'paques', name: 'Pâques', emoji: '🐣', bg: '#fff9e6', bg2: '#e3d7ff', text: '#2f2550', fx: ['🥚', '🐣', '🌷', '🐰'], fxCount: 16 },
   { id: 'mariage', name: 'Mariage', emoji: '💍', bg: '#fbf8f3', bg2: '#efe3d3', text: '#3d3328', fx: ['🤍', '🕊️', '✨'], fxCount: 14 },
 ];
+
+// Noms des formules selon le thème (1 photo, 2 photos, 3 photos, 5 photos)
+const FORMULA_NAMES = {
+  classique: ['✨ Éclat', '🌟 Duo Prestige', '💫 Trio Lumière', '👑 Collection Or'],
+  clair: ['🤍 Instant Pur', '🕊️ Duo Douceur', '☁️ Trio Lumineux', '💎 Collection Signature'],
+  hiver: ['❄️ Cristal de Givre', '⛸️ Duo Patineurs', '🏔️ Trio des Cimes', '🌨️ Grand Blanc'],
+  printemps: ['🌸 Bourgeon', '🌷 Duo Floral', '🦋 Trio Papillon', '💐 Bouquet de Printemps'],
+  ete: ['☀️ Rayon de Soleil', '🌊 Duo Vague', '🍹 Trio Tropical', '🌴 Évasion d\'Été'],
+  automne: ['🍂 Feuille d\'Or', '🍁 Duo Érable', '🌰 Trio Châtaigne', '🍄 Forêt Enchantée'],
+  halloween: ['🎃 Petite Citrouille', '👻 Duo Fantôme', '🦇 Trio Vampire', '🧙 Grimoire Ensorcelé'],
+  noel: ['🎅 Lutinette', '🎁 Étoile de Noël', '⛄ Flocon Magique', '🎄 Sphère Enchantée'],
+  'nouvel-an': ['🥂 Coupe Pétillante', '🎉 Duo Confettis', '✨ Trio Paillettes', '🎆 Feu d\'Artifice'],
+  'saint-valentin': ['💌 Mot Doux', '💕 Duo Complice', '🌹 Trio Passion', '💘 Coup de Foudre'],
+  paques: ['🐣 Petit Poussin', '🐰 Duo Lapins', '🌷 Trio Printanier', '🥚 Œuf d\'Or'],
+  mariage: ['💍 Alliance', '🥂 Duo des Mariés', '💐 Trio Bouquet', '👰 Grand Jour'],
+};
+const currentThemeId = () => (settings.theme === 'auto' ? themeForDate() : settings.theme);
+// nom affiché : nom personnalisé pour ce thème, sinon nom du thème, sinon nom saisi
+function formulaName(f) {
+  const th = currentThemeId();
+  if (f.names && f.names[th]) return f.names[th];
+  const idx = settings.formulas.indexOf(f);
+  if (idx >= 0 && idx < 4 && FORMULA_NAMES[th]) return FORMULA_NAMES[th][idx];
+  return f.name;
+}
 
 function easterDate(y) { // algorithme de Meeus
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
@@ -651,7 +676,7 @@ function renderDonation() {
   const f = formulaForCount(n);
   const pct = eventPct(ev.id);
   $('#donation-icon').innerHTML = ev.id === 'telethon' ? '<img src="icons/telethon.svg" alt="Téléthon">' : ev.emoji;
-  const formulaLine = f ? `${f.name} (${f.photos} photo${f.photos > 1 ? 's' : ''}) : ${priceHTML(f, pct)}` : "Choisissez vos photos à l'étape 2";
+  const formulaLine = f ? `${formulaName(f)} (${f.photos} photo${f.photos > 1 ? 's' : ''}) : ${priceHTML(f, pct)}` : "Choisissez vos photos à l'étape 2";
   if (ev.id === 'telethon') {
     $('#donation-title').textContent = 'Montant reversé au Téléthon';
     $('#donation-detail').innerHTML = `${formulaLine}${pct ? ` <span class="pill-mini">−${pct} %</span>` : ''}`;
@@ -686,7 +711,7 @@ function renderRecap() {
       const ev = activeEvent(); const f = formulaForCount(sel.length);
       if (!f) return '';
       const pct = ev ? eventPct(ev.id) : 0;
-      return `<dt>Formule</dt><dd>${esc(f.name)} : ${priceHTML(f, pct)}</dd>${ev ? `<dt>${esc(ev.name)}</dt><dd>${pct ? `−${pct} %` : ''}${ev.id === 'telethon' ? ` · ${euro(f.telethon)} reversés au Téléthon` : ''}</dd>` : ''}`;
+      return `<dt>Formule</dt><dd>${esc(formulaName(f))} : ${priceHTML(f, pct)}</dd>${ev ? `<dt>${esc(ev.name)}</dt><dd>${pct ? `−${pct} %` : ''}${ev.id === 'telethon' ? ` · ${euro(f.telethon)} reversés au Téléthon` : ''}</dd>` : ''}`;
     })()}
     <div class="thumbs">${sel.slice(0, 24).map((p) => (p.thumb ? `<img src="${p.thumb}" alt="">` : '')).join('')}${sel.length > 24 ? `<span class="muted">+${sel.length - 24}</span>` : ''}</div>`;
   renderFolderNames();
@@ -777,7 +802,7 @@ async function renderPay(where = current === 'wizard' ? 'wizard' : 'direct', pre
   }
   const pct = payPct();
   $('#pay-formulas', payNode).innerHTML = sortedFormulas().map((f) => `
-    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(f.name)}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
+    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(formulaName(f))}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
     + (payEvent()?.ev?.id === 'telethon' ? '<div class="telethon-tile"><img src="icons/telethon.svg" alt="Téléthon"><span id="tt-amount"></span></div>' : '');
   $('#pay-amount', payNode).value = payState.amount;
   $('#pay-state', payNode).textContent = c && c.paid ? `✅ Déjà payé : ${euro(c.amount)} (${c.payMethod === 'cash' ? 'espèces' : 'carte'})` : '';
@@ -864,7 +889,7 @@ function openSumUpApp() {
     'affiliate-key': settings.sumupKey,
     amount: amt,
     currency: 'EUR',
-    title: `HTV Flash${f ? ` - ${f.name}` : ''}`,
+    title: `HTV Flash${f ? ` - ${formulaName(f)}` : ''}`,
     'foreign-tx-id': `htv-${Date.now()}`,
     callbacksuccess: `${back}?sumup=success`,
     callbackfail: `${back}?sumup=fail`,
@@ -878,7 +903,7 @@ async function markPaid(method) {
   if (payState.clientId) {
     const c = await db.client(payState.clientId);
     if (c) {
-      Object.assign(c, { paid: true, payMethod: method, amount: amt, formula: f ? f.name : '', paidAt: new Date().toISOString() });
+      Object.assign(c, { paid: true, payMethod: method, amount: amt, formula: f ? formulaName(f) : '', paidAt: new Date().toISOString() });
       if (c.event === 'telethon') { c.donation = payDonationAmount(); }
       if (f) c.formulaId = f.id;
       await db.putClient(c);
@@ -1018,11 +1043,12 @@ function renderEvents() {
     </div>`).join('');
 }
 function renderFormulaList() {
-  $('#formula-list').innerHTML = `
+  const th = THEMES.find((t) => t.id === currentThemeId());
+  $('#formula-list').innerHTML = `<p class="muted small">Les noms suivent le thème choisi (actuellement : ${esc(th ? `${th.emoji} ${th.name}` : '')}). Un nom modifié ici ne change que pour ce thème ; effacez-le pour revenir au nom proposé.</p>
     <div class="formula-row head"><span>Nom</span><span>Photos</span><span>Prix d'origine</span><span>Reversé Téléthon</span><span>Lien SumUp (facultatif)</span><span></span></div>` +
     settings.formulas.map((f, i) => `
     <div class="formula-row" data-i="${i}">
-      <input data-k="name" value="${esc(f.name)}" placeholder="Nom de la formule">
+      <input data-k="name" value="${esc(formulaName(f))}" placeholder="Nom de la formule">
       <input data-k="photos" type="number" inputmode="numeric" min="1" step="1" value="${esc(f.photos ?? 1)}" aria-label="Nombre de photos">
       <input data-k="price" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.price)}" aria-label="Prix d'origine en euros">
       <input data-k="telethon" type="number" inputmode="decimal" step="0.5" min="0" value="${esc(f.telethon ?? 0)}" aria-label="Montant reversé au Téléthon">
@@ -1258,6 +1284,14 @@ function bind() {
     if (!row || !e.target.dataset.k) return;
     const f = settings.formulas[Number(row.dataset.i)];
     const k = e.target.dataset.k;
+    if (k === 'name') {
+      // un nom modifié ne s'applique qu'au thème en cours
+      const v = e.target.value.trim();
+      f.names = { ...(f.names || {}), [currentThemeId()]: v };
+      if (!v) delete f.names[currentThemeId()];
+      saveSettings(); renderFormulaList();
+      return;
+    }
     f[k] = ['price', 'photos', 'telethon'].includes(k) ? Number(e.target.value) || 0 : e.target.value.trim();
     saveSettings();
   });

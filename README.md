@@ -25,6 +25,9 @@ Dans « Réduction pour association et événement », un interrupteur par évé
 
 ## Thèmes
 
+Les noms des formules changent avec le thème (ex. Noël : Lutinette, Étoile de Noël, Flocon Magique, Sphère Enchantée ; Halloween : Petite Citrouille, Duo Fantôme, Trio Vampire, Grimoire Ensorcelé). Un nom modifié dans les réglages ne s'applique qu'au thème en cours.
+
+
 Réglages ⚙️ → Thème : HTV Flash noir & or (par défaut, charte de la marque), Automatique (suit la date), Clair, Hiver, Printemps, Été, Automne, Halloween, Noël, Nouvel An, Saint-Valentin, Pâques, Mariage. Les animations (neige, feuilles, cœurs…) peuvent être coupées.
 
 ## Installation sur le Chromebook
