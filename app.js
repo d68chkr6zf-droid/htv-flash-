@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -323,6 +323,8 @@ function loadSession(source, photos, quiet = false) {
   if (!photos.length) toast('Aucune photo trouvée sur cette carte.');
   else toast(`${photos.length} photo(s) importée(s) 👍`);
   updateWizNav();
+  // on passe directement au choix des photos
+  if (photos.length && location.hash.startsWith('#wizard') && wiz.step === 1) go('wizard', 2);
 }
 
 /* ---------- Miniatures (générées à la demande, en petit) ---------- */
@@ -445,9 +447,9 @@ function photoTile(photo, { selectable = false, list = [] } = {}) {
   }
   b.insertAdjacentHTML('beforeend', `<span class="ph-name">${esc(photo.name)}${photo.raw ? ' + RAW' : ''}</span>${photo.rawOnly ? '<span class="ph-badge">RAW</span>' : ''}${selectable ? '<span class="ph-check">✓</span>' : ''}`);
 
-  // appui court = sélectionner (si sélectionnable) ; appui long = agrandir
+  // sélectionnable : un toucher = choisir (pas de plein écran) ; sinon toucher = agrandir
   let timer, long = false;
-  b.addEventListener('pointerdown', () => { long = false; timer = setTimeout(() => { long = true; openViewer(list, photo, selectable); }, 500); });
+  b.addEventListener('pointerdown', () => { long = false; if (selectable) return; timer = setTimeout(() => { long = true; openViewer(list, photo, selectable); }, 500); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => clearTimeout(timer)));
   b.addEventListener('contextmenu', (e) => e.preventDefault());
   b.addEventListener('click', () => {
