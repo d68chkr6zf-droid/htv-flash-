@@ -19,7 +19,7 @@ Les réglages ⚙️ sont protégés par un code à 4 chiffres, créé à la pre
 
 ## Formules et réduction pour association et événement
 
-Chaque formule a un nom, un nombre de photos, un **prix d'origine** et un **montant reversé au Téléthon**. Par défaut : Lutinette (1 photo, 12 €, 2 €), Duo de Rennes (2 photos, 20 €, 3 €), Trio Enneigé (3 photos, 28 €, 4 €), Pack Magie de Noël (5 photos, 40 €, 5 €).
+Chaque formule a un nom, un nombre de photos, un **prix d'origine** et un **montant reversé au Téléthon**. Par défaut : Lutinette (1 photo, 12 €, 2 €), Étoile de Noël (2 photos, 20 €, 3 €), Flocon Magique (3 photos, 28 €, 4 €), Sphère Enchantée (5 photos, 40 €, 5 €).
 
 Dans « Réduction pour association et événement », un interrupteur par événement (un seul actif à la fois) : **Téléthon** (−50 % par défaut + montant reversé par formule), **Mariage** et **Fêtes locales** (pourcentage de réduction modifiable).
 

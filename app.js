@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -67,9 +67,9 @@ const DEFAULT_SETTINGS = {
   // price = prix d'origine (avant réduction) ; telethon = montant reversé au Téléthon
   formulas: [
     { id: 'f1', name: '🎅 Lutinette', photos: 1, price: 12, telethon: 2, link: '' },
-    { id: 'f2', name: '🎁 Duo de Rennes', photos: 2, price: 20, telethon: 3, link: '' },
-    { id: 'f3', name: '⛄ Trio Enneigé', photos: 3, price: 28, telethon: 4, link: '' },
-    { id: 'f4', name: '🎄 Pack Magie de Noël', photos: 5, price: 40, telethon: 5, link: '' },
+    { id: 'f2', name: '🎁 Étoile de Noël', photos: 2, price: 20, telethon: 3, link: '' },
+    { id: 'f3', name: '⛄ Flocon Magique', photos: 3, price: 28, telethon: 4, link: '' },
+    { id: 'f4', name: '🎄 Sphère Enchantée', photos: 5, price: 40, telethon: 5, link: '' },
   ],
 };
 let settings = loadSettings();
@@ -78,6 +78,8 @@ function loadSettings() {
     const s = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('htv-settings') || '{}') };
     s.eventPct = { ...DEFAULT_SETTINGS.eventPct, ...s.eventPct };
     if (s.formulas.some((f) => f.photos === undefined)) s.formulas = DEFAULT_SETTINGS.formulas;
+    const renamed = { '🎁 Duo de Rennes': '🎁 Étoile de Noël', '⛄ Trio Enneigé': '⛄ Flocon Magique', '🎄 Pack Magie de Noël': '🎄 Sphère Enchantée' };
+    s.formulas.forEach((f) => { if (renamed[f.name]) f.name = renamed[f.name]; });
     return s;
   }
   catch { return { ...DEFAULT_SETTINGS }; }
@@ -648,7 +650,7 @@ function renderDonation() {
   const n = session.photos.filter((p) => p.selected).length;
   const f = formulaForCount(n);
   const pct = eventPct(ev.id);
-  $('#donation-icon').textContent = ev.emoji;
+  $('#donation-icon').innerHTML = ev.id === 'telethon' ? '<img src="icons/telethon.svg" alt="Téléthon">' : ev.emoji;
   const formulaLine = f ? `${f.name} (${f.photos} photo${f.photos > 1 ? 's' : ''}) : ${priceHTML(f, pct)}` : "Choisissez vos photos à l'étape 2";
   if (ev.id === 'telethon') {
     $('#donation-title').textContent = 'Montant reversé au Téléthon';
@@ -775,7 +777,8 @@ async function renderPay(where = current === 'wizard' ? 'wizard' : 'direct', pre
   }
   const pct = payPct();
   $('#pay-formulas', payNode).innerHTML = sortedFormulas().map((f) => `
-    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(f.name)}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('');
+    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}" data-fid="${f.id}"><b>${esc(f.name)}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
+    + (payEvent()?.ev?.id === 'telethon' ? '<div class="telethon-tile"><img src="icons/telethon.svg" alt="Téléthon"><span id="tt-amount"></span></div>' : '');
   $('#pay-amount', payNode).value = payState.amount;
   $('#pay-state', payNode).textContent = c && c.paid ? `✅ Déjà payé : ${euro(c.amount)} (${c.payMethod === 'cash' ? 'espèces' : 'carte'})` : '';
   refreshPayOutputs();
@@ -802,7 +805,11 @@ function showPayDonation() {
   if (el.hidden) return;
   const parts = [];
   if (pe.pct) parts.push(`Réduction ${pe.ev.name} −${pe.pct} %`);
-  if (pe.ev.id === 'telethon') parts.push(`dont ${euro(payDonationAmount())} reversés au Téléthon`);
+  if (pe.ev.id === 'telethon') {
+    parts.push(`dont ${euro(payDonationAmount())} reversés au Téléthon`);
+    const tt = $('#tt-amount', payNode);
+    if (tt) tt.textContent = currentFormula() || payClientCache ? `${euro(payDonationAmount())} reversés` : 'Merci pour votre soutien';
+  }
   el.textContent = `${pe.ev.emoji} ${parts.join(' · ')}`;
 }
 function currentFormula() { return settings.formulas.find((f) => f.id === payState.formula) || null; }
