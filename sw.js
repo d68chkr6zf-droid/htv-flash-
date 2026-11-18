@@ -1,5 +1,5 @@
 /* HTV Flash : fonctionne hors ligne (cache de l'application) */
-const CACHE = 'htvflash-v1.6.8';
+const CACHE = 'htvflash-v1.6.9';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vendor/qrcode.js', 'manifest.webmanifest',
   'icons/logo-htvflash.svg', 'icons/logo-htvflash-light.svg', 'icons/telethon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
@@ -14,7 +14,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then((res) => {
+    fetch(e.request.url, { cache: 'no-cache' }).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return res;
