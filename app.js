@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.7';
+const APP_VERSION = '1.6.8';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -352,8 +352,14 @@ async function pickSD() {
     try { await walkDir(dir, '', entries); }
     catch (e) {
       if (dir !== sdHandle) throw e;
-      toast(`Carte « ${sdHandle.name} » introuvable : vérifiez qu'elle est bien insérée.`, 4500);
-      return;
+      // carte mémorisée absente (retirée, ou carte avec un autre nom) : on propose de choisir la carte
+      busy(false);
+      toast(`Carte « ${sdHandle.name} » introuvable : choisissez la carte insérée.`, 4500);
+      dir = await chooseSD();
+      if (!dir) return;
+      busy(true, 'Lecture de la carte…');
+      entries.length = 0;
+      await walkDir(dir, '', entries);
     }
     loadSession(dir.name, groupFiles(entries));
     // fichiers lus sur la carte : effacés à la fin si le photographe le demande
@@ -725,7 +731,8 @@ function showStep(n) {
   $('#screen-title').textContent = wiz.step <= 6 ? `Étape ${wiz.step} sur 6` : 'Terminé';
   $('#stepper').hidden = wiz.step === 7;
   renderStepper();
-  if (wiz.step === 1) renderImport();
+  // étape 1 : on repart toujours d'une carte à lire (jamais les photos d'une carte précédente)
+  if (wiz.step === 1) { if (session.photos.length) loadSession('', [], true); else renderImport(); }
   if (wiz.step === 2) renderSelection();
   if (wiz.step === 3) { renderDonation(); setTimeout(() => { const f = $$('#client-form input').find((i) => !i.value); if (f) f.focus(); }, 250); }
   if (wiz.step === 4) renderConsent();
@@ -1331,8 +1338,8 @@ function bind() {
   });
 
   $('#btn-start').addEventListener('click', () => {
-    // nouvelle séance : on garde les photos déjà importées si elles n'ont pas encore servi
-    newSession({ keepPhotos: !wiz.savedId && session.photos.length > 0 });
+    // nouvelle séance : la carte est toujours relue
+    newSession();
     go('wizard', 1);
   });
 
