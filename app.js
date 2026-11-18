@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.9';
+const APP_VERSION = '1.7.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -345,6 +345,10 @@ async function pickSD() {
   if (!dir) {
     try { dir = await window.showDirectoryPicker({ id: 'microsd', mode: 'readwrite' }); }
     catch (e) { if (e.name !== 'AbortError') toast("Impossible d'ouvrir la carte."); return; }
+    // la carte choisie est mémorisée : les prochaines lectures se font sans cette fenêtre
+    sdHandle = dir;
+    try { await db.set('sd', dir); } catch {}
+    renderSdName();
   }
   busy(true, 'Lecture de la carte…');
   try {
