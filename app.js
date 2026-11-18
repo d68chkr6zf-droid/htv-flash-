@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.6';
+const APP_VERSION = '1.6.7';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -938,16 +938,21 @@ async function renderPay(where = current === 'wizard' ? 'wizard' : 'direct', pre
     payState.amount = String(discounted(currentFormula().price, payPct()));
   }
   const pct = payPct();
-  // dans le parcours client, la formule découle des photos choisies : les autres sont grisées
-  const locked = where === 'wizard' && c && c.formulaId && !c.paid && settings.formulas.some((f) => f.id === c.formulaId);
-  if (locked && payState.formula !== c.formulaId) {
-    payState.formula = c.formulaId;
-    payState.amount = String(discounted(currentFormula().price, pct));
+  // dès qu'un client est choisi (parcours ou accueil), la formule découle de ses photos :
+  // les autres formules sont grisées et le montant n'est pas modifiable
+  let lockId = '';
+  if (c) {
+    lockId = settings.formulas.some((f) => f.id === c.formulaId) ? c.formulaId : (formulaForCount((c.photos || []).length || 1)?.id || '');
   }
-  payNode.classList.toggle('pay-locked', Boolean(locked));
-  $('#pay-amount', payNode).readOnly = Boolean(locked);
+  const locked = Boolean(lockId);
+  if (locked && (payState.formula !== lockId || where !== 'wizard')) {
+    payState.formula = lockId;
+    payState.amount = c.paid && c.amount ? String(c.amount) : String(discounted(currentFormula().price, pct));
+  }
+  payNode.classList.toggle('pay-locked', locked);
+  $('#pay-amount', payNode).readOnly = locked;
   $('#pay-formulas', payNode).innerHTML = sortedFormulas().map((f) => `
-    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}${locked && f.id !== c.formulaId ? ' off' : ''}" data-fid="${f.id}"${locked && f.id !== c.formulaId ? ' disabled' : ''}><b>${esc(formulaName(f))}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
+    <button type="button" class="formula${payState.formula === f.id ? ' on' : ''}${locked && f.id !== lockId ? ' off' : ''}" data-fid="${f.id}"${locked && f.id !== lockId ? ' disabled' : ''}><b>${esc(formulaName(f))}</b><small>${f.photos} photo${f.photos > 1 ? 's' : ''}</small><span>${priceHTML(f, pct)}</span></button>`).join('')
     + (payEvent()?.ev?.id === 'telethon' ? '<div class="telethon-tile"><img src="icons/telethon.svg" alt="Téléthon"><span id="tt-amount"></span></div>' : '');
   $('#pay-amount', payNode).value = payState.amount;
   $('#pay-state', payNode).textContent = c && c.paid ? `✅ Déjà payé : ${euro(c.amount)} (${c.payMethod === 'cash' ? 'espèces' : 'carte'})` : '';
@@ -1021,7 +1026,7 @@ function bindPay(node) {
     $('#pay-amount', node).value = payState.amount;
     refreshPayOutputs();
   });
-  $('#pay-amount', node).addEventListener('input', (e) => { payState.amount = e.target.value; refreshPayOutputs(); });
+  $('#pay-amount', node).addEventListener('input', (e) => { if (e.target.readOnly) return; payState.amount = e.target.value; refreshPayOutputs(); });
   $('#pay-open-link', node).addEventListener('click', () => {
     const link = payLink();
     if (link) window.open(link, '_blank', 'noopener');
