@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.5';
+const APP_VERSION = '1.6.6';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -298,15 +298,63 @@ function groupFiles(entries) {
   return photos;
 }
 
+/* Carte microSD mémorisée dans les réglages : plus besoin de la choisir à chaque fois */
+let sdHandle = null;
+async function loadSdHandle() {
+  try { sdHandle = (await db.get('sd')) || null; } catch { sdHandle = null; }
+  renderSdName();
+}
+function renderSdName() {
+  $$('.sd-name').forEach((el) => { el.textContent = sdHandle ? `💾 ${sdHandle.name}` : 'Aucune carte mémorisée (elle sera demandée à chaque lecture)'; });
+  const f = $('#btn-forget-sd'); if (f) f.hidden = !sdHandle;
+  const h = $('#sd-hint'); if (h) h.hidden = !sdHandle;
+  if (h && sdHandle) h.textContent = `Carte mémorisée : « ${sdHandle.name} ». Touchez le bouton, la lecture est directe.`;
+}
+async function chooseSD() {
+  if (!hasFS) { toast('Utilisez Chrome pour mémoriser la carte.'); return null; }
+  try {
+    const dir = await window.showDirectoryPicker({ id: 'microsd', mode: 'readwrite' });
+    sdHandle = dir;
+    await db.set('sd', dir);
+    renderSdName();
+    toast(`Carte « ${dir.name} » mémorisée`);
+    return dir;
+  } catch (e) {
+    if (e.name !== 'AbortError') toast("Impossible d'ouvrir la carte.");
+    return null;
+  }
+}
+async function forgetSD() {
+  sdHandle = null;
+  try { await db.set('sd', null); } catch {}
+  renderSdName();
+  toast('Carte oubliée : elle sera demandée à la prochaine lecture.');
+}
+
 async function pickSD() {
   if (!hasFS) { $('#input-fallback').click(); return; }
-  let dir;
-  try { dir = await window.showDirectoryPicker({ id: 'microsd', mode: 'readwrite' }); }
-  catch (e) { if (e.name !== 'AbortError') toast("Impossible d'ouvrir la carte."); return; }
+  let dir = null;
+  if (sdHandle) {
+    // carte mémorisée : Chrome peut redemander l'autorisation d'un simple toucher
+    try {
+      const opts = { mode: 'readwrite' };
+      if ((await sdHandle.queryPermission(opts)) === 'granted' || (await sdHandle.requestPermission(opts)) === 'granted') dir = sdHandle;
+      else toast('Autorisation refusée : choisissez la carte.');
+    } catch { dir = null; }
+  }
+  if (!dir) {
+    try { dir = await window.showDirectoryPicker({ id: 'microsd', mode: 'readwrite' }); }
+    catch (e) { if (e.name !== 'AbortError') toast("Impossible d'ouvrir la carte."); return; }
+  }
   busy(true, 'Lecture de la carte…');
   try {
     const entries = [];
-    await walkDir(dir, '', entries);
+    try { await walkDir(dir, '', entries); }
+    catch (e) {
+      if (dir !== sdHandle) throw e;
+      toast(`Carte « ${sdHandle.name} » introuvable : vérifiez qu'elle est bien insérée.`, 4500);
+      return;
+    }
     loadSession(dir.name, groupFiles(entries));
     // fichiers lus sur la carte : effacés à la fin si le photographe le demande
     session.sdDir = dir;
@@ -1286,6 +1334,8 @@ function bind() {
   // Étape 1
   $('#btn-pick-sd').addEventListener('click', pickSD);
   $('#btn-import-again').addEventListener('click', pickSD);
+  $('#btn-choose-sd').addEventListener('click', chooseSD);
+  $('#btn-forget-sd').addEventListener('click', forgetSD);
   if (!hasFS) $('#fallback-pick').hidden = false;
   $('#input-fallback').addEventListener('change', (e) => {
     const files = [...e.target.files].map((f) => ({ path: f.webkitRelativePath || f.name, name: f.name, file: f }));
@@ -1477,6 +1527,7 @@ function bind() {
   applyTheme();
   bind();
   await loadRoot();
+  await loadSdHandle();
   route();
   await handleSumUpReturn();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

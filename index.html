@@ -69,6 +69,7 @@
             <div class="big-emoji">💾</div>
             <button class="btn btn-xl btn-primary" id="btn-pick-sd">Lire la carte microSD</button>
             <p class="muted small">Dans la fenêtre qui s'ouvre, choisissez la carte (souvent « SD », « NO NAME » ou « EOS_DIGITAL ») puis « Ouvrir ».</p>
+            <p class="muted small" id="sd-hint" hidden></p>
             <label class="btn btn-ghost" id="fallback-pick" hidden>
               Choisir des photos
               <input type="file" id="input-fallback" accept="image/*" multiple hidden>
@@ -287,6 +288,18 @@
         <div class="folder-card inline">
           <div class="muted folder-name">Aucun dossier choisi</div>
           <button class="btn btn-primary choose-root">Choisir le dossier</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Carte microSD</h2>
+        <p class="muted small">Choisissez une fois la carte (sa racine, pas le dossier DCIM) : « Lire la carte microSD » l'ouvrira directement, sans passer par la fenêtre de fichiers. Fonctionne pour toutes les cartes qui portent le même nom (par exemple formatées dans le même appareil).</p>
+        <div class="folder-card inline">
+          <div class="muted sd-name">Aucune carte mémorisée</div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-ghost" id="btn-forget-sd" hidden>Oublier</button>
+            <button class="btn btn-primary" id="btn-choose-sd">Choisir la carte</button>
+          </div>
         </div>
       </div>
 
