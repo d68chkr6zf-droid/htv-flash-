@@ -245,6 +245,7 @@
           <div class="pay-donation" id="pay-donation" hidden></div>
         </div>
         <div class="card pay-actions">
+          <button class="btn btn-xl btn-primary" id="pay-solo" hidden>💳 Payer sur le terminal Solo</button>
           <button class="btn btn-xl btn-primary" id="pay-sumup-app" hidden>📲 Encaisser avec l'app SumUp</button>
           <div class="qr-wrap" id="pay-qr-wrap" hidden>
             <div id="pay-qr" class="qr"></div>
@@ -315,6 +316,21 @@
           <input id="set-sumup-link" type="url" inputmode="url" placeholder="https://pay.sumup.com/b2c/…">
         </label>
         <p class="muted small">Dans l'app SumUp : « Liens de paiement » → créer un lien → copier, puis collez-le ici. Le client le scanne en QR code. Chaque formule peut avoir son propre lien (montant fixe).</p>
+        <h3 style="margin-top:18px">Terminal SumUp Solo</h3>
+        <p class="muted small">Envoie le montant directement sur le Solo et enregistre le paiement tout seul. Passe par votre relais Cloudflare, qui garde la clé SumUp secrète (voir le guide d'installation).</p>
+        <label class="field"><span>Adresse du relais</span>
+          <input id="set-solo-relay" type="url" inputmode="url" placeholder="https://htv-solo.votre-compte.workers.dev">
+        </label>
+        <label class="field"><span>Mot de passe du relais</span>
+          <input id="set-solo-token" type="password" autocomplete="off" placeholder="Le RELAY_TOKEN choisi dans Cloudflare">
+        </label>
+        <p class="small" id="solo-state"></p>
+        <div class="row-2" id="solo-pair-row" hidden>
+          <input id="set-solo-code" placeholder="Code affiché sur le Solo" autocomplete="off" style="text-transform:uppercase">
+          <button class="btn btn-primary" id="btn-solo-pair">Associer le terminal</button>
+          <button class="btn btn-ghost" id="btn-solo-test">Tester la connexion</button>
+          <button class="btn btn-ghost danger" id="btn-solo-forget" hidden>Dissocier</button>
+        </div>
         <details>
           <summary>Avancé : ouvrir l'app SumUp avec le montant déjà saisi</summary>
           <label class="field"><span>Clé d'affiliation SumUp (Affiliate Key)</span>
@@ -362,6 +378,18 @@
   </div>
 
   <!-- code à 4 chiffres -->
+  <div class="pin" id="solo" hidden>
+    <div class="pin-box">
+      <div class="pin-lock" id="solo-icon">💳</div>
+      <h2 id="solo-title"></h2>
+      <p class="muted" id="solo-text"></p>
+      <div class="solo-spinner"></div>
+      <div style="margin-top:22px">
+        <button class="btn btn-ghost" id="solo-cancel">Annuler le paiement</button>
+        <button class="btn btn-primary" id="solo-close" hidden>Fermer</button>
+      </div>
+    </div>
+  </div>
   <div class="pin" id="confirm" hidden>
     <div class="pin-box">
       <div class="pin-lock">💾</div>

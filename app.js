@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.8.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -85,6 +85,10 @@ const DEFAULT_SETTINGS = {
   anim: true,
   sumupLink: '',
   sumupKey: '',
+  soloRelay: '',
+  soloToken: '',
+  soloReaderId: '',
+  soloReaderName: '',
   consentText: "J'autorise HTV Flash à utiliser les photos prises lors de cette séance pour sa communication (site internet, réseaux sociaux, portfolio, salons).\nJe peux retirer mon accord à tout moment par simple e-mail.",
   eventActive: 'none',
   eventPct: { telethon: 50, mariage: 10, 'fete-locale': 10 },
@@ -1102,7 +1106,10 @@ function refreshPayOutputs() {
   }
   $('#pay-sumup-app', payNode).hidden = !settings.sumupKey;
   $('#pay-sumup-app', payNode).disabled = amt <= 0;
-  $('#pay-no-config', payNode).hidden = Boolean(link || settings.sumupKey);
+  $('#pay-solo', payNode).hidden = !soloReady();
+  $('#pay-solo', payNode).disabled = amt <= 0;
+  $('#pay-solo', payNode).textContent = `💳 Payer ${amt > 0 ? euro(amt) + ' ' : ''}sur le terminal Solo`;
+  $('#pay-no-config', payNode).hidden = Boolean(link || settings.sumupKey || soloReady());
 }
 function bindPay(node) {
   $('#pay-client', node).addEventListener('change', (e) => { payState.clientId = e.target.value; renderPay(); });
@@ -1121,6 +1128,7 @@ function bindPay(node) {
     if (link) window.open(link, '_blank', 'noopener');
   });
   $('#pay-sumup-app', node).addEventListener('click', openSumUpApp);
+  $('#pay-solo', node).addEventListener('click', paySolo);
   $('#pay-mark-card', node).addEventListener('click', () => markPaid('card'));
   $('#pay-mark-cash', node).addEventListener('click', () => markPaid('cash'));
 }
@@ -1275,6 +1283,9 @@ function renderSettings() {
   $('#set-anim').checked = settings.anim;
   $('#set-sumup-link').value = settings.sumupLink;
   $('#set-sumup-key').value = settings.sumupKey;
+  $('#set-solo-relay').value = settings.soloRelay;
+  $('#set-solo-token').value = settings.soloToken;
+  renderSoloState();
   $('#set-consent').value = settings.consentText;
   renderFormulaList();
   renderEvents();
@@ -1541,6 +1552,13 @@ function bind() {
   $('#set-anim').addEventListener('change', (e) => { settings.anim = e.target.checked; saveSettings(); applyTheme(); });
   $('#set-sumup-link').addEventListener('change', (e) => { settings.sumupLink = e.target.value.trim(); saveSettings(); toast('Lien SumUp enregistré'); });
   $('#set-sumup-key').addEventListener('change', (e) => { settings.sumupKey = e.target.value.trim(); saveSettings(); toast('Clé SumUp enregistrée'); });
+  $('#set-solo-relay').addEventListener('change', (e) => { settings.soloRelay = e.target.value.trim().replace(/\/+$/, ''); saveSettings(); renderSoloState(); });
+  $('#set-solo-token').addEventListener('change', (e) => { settings.soloToken = e.target.value.trim(); saveSettings(); renderSoloState(); });
+  $('#btn-solo-test').addEventListener('click', soloTest);
+  $('#btn-solo-pair').addEventListener('click', soloPair);
+  $('#btn-solo-forget').addEventListener('click', soloForget);
+  $('#solo-cancel').addEventListener('click', soloCancel);
+  $('#solo-close').addEventListener('click', () => { $('#solo').hidden = true; });
   $('#set-consent').addEventListener('change', (e) => { settings.consentText = e.target.value.trim() || DEFAULT_SETTINGS.consentText; saveSettings(); toast('Texte enregistré'); });
   $('#formula-list').addEventListener('change', (e) => {
     const row = e.target.closest('[data-i]');
@@ -1661,4 +1679,133 @@ async function wipeCard() {
   else toast(`Carte vidée : ${done} fichier(s) supprimé(s). Vous pouvez la remettre dans l'appareil 📸`, 4500);
   newSession();
   go('home');
+}
+
+/* ---------------------------------------------------------
+   Terminal SumUp Solo (via le relais Cloudflare qui garde la clé secrète)
+   --------------------------------------------------------- */
+const soloReady = () => Boolean(settings.soloRelay && settings.soloToken && settings.soloReaderId);
+async function soloApi(method, path, body) {
+  if (!settings.soloRelay || !settings.soloToken) throw new Error("Adresse ou mot de passe du relais manquant dans les réglages.");
+  let r;
+  try {
+    r = await fetch(settings.soloRelay + path, {
+      method,
+      headers: { 'X-Relay-Token': settings.soloToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+    });
+  } catch { throw new Error("Relais injoignable : vérifiez internet et l'adresse du relais."); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(soloErr(data, r.status)), { status: r.status, data });
+  return data;
+}
+function soloErr(d, status) {
+  const t = JSON.stringify(d || {});
+  if (/READER_OFFLINE/i.test(t)) return 'Le Solo est hors ligne : vérifiez qu\'il est allumé et connecté au Wi-Fi.';
+  if (/READER_BUSY/i.test(t)) return 'Le Solo est occupé par un autre paiement. Patientez ou annulez sur le terminal.';
+  if (/INVALID_AFFILIATE_KEY/i.test(t)) return 'Clé d\'affiliation SumUp refusée : vérifiez-la dans le relais.';
+  if (status === 401 && /relais/i.test(t)) return 'Mot de passe du relais incorrect.';
+  if (status === 401) return 'Clé API SumUp refusée : vérifiez-la dans le relais.';
+  return (d && d.error) || `Erreur ${status}`;
+}
+function renderSoloState() {
+  const el = $('#solo-state');
+  if (!el) return;
+  const configured = settings.soloRelay && settings.soloToken;
+  $('#solo-pair-row').hidden = !configured;
+  $('#btn-solo-forget').hidden = !settings.soloReaderId;
+  el.textContent = !configured ? 'Renseignez l\'adresse et le mot de passe du relais.'
+    : settings.soloReaderId ? `✅ Terminal associé : ${settings.soloReaderName || settings.soloReaderId}` : 'Aucun terminal associé : entrez le code affiché sur le Solo.';
+}
+async function soloTest() {
+  busy(true, 'Test du relais…');
+  try {
+    const h = await soloApi('GET', '/health');
+    const { readers } = await soloApi('GET', '/readers');
+    if (!settings.soloReaderId && readers && readers.length) {
+      settings.soloReaderId = readers[0].id; settings.soloReaderName = readers[0].name || 'Solo'; saveSettings();
+    }
+    renderSoloState();
+    toast(`Relais OK ✅ (compte ${h.merchant_code}, ${readers ? readers.length : 0} terminal(aux) associé(s))`, 4500);
+  } catch (e) { toast(e.message, 5000); } finally { busy(false); }
+}
+async function soloPair() {
+  const code = $('#set-solo-code').value.trim();
+  if (!code) { toast('Entrez le code affiché sur le Solo (Menu › Connexions › API › Connecter).', 4500); return; }
+  busy(true, 'Association du terminal…');
+  try {
+    const { reader } = await soloApi('POST', '/pair', { pairing_code: code, name: 'HTV Flash' });
+    settings.soloReaderId = reader.id; settings.soloReaderName = reader.name || 'Solo'; saveSettings();
+    $('#set-solo-code').value = '';
+    renderSoloState();
+    toast('Terminal Solo associé ✅', 4000);
+  } catch (e) { toast(e.message, 5000); } finally { busy(false); }
+}
+async function soloForget() {
+  if (!(await confirmBox('Dissocier le terminal ?', "L'appli ne pourra plus envoyer de paiement à ce Solo, jusqu'à une nouvelle association.", 'Oui, dissocier'))) return;
+  try { await soloApi('DELETE', `/readers/${encodeURIComponent(settings.soloReaderId)}`); } catch (e) { console.warn(e); }
+  settings.soloReaderId = ''; settings.soloReaderName = ''; saveSettings(); renderSoloState();
+}
+
+const soloRun = { checkoutId: '', active: false, timer: null };
+function soloShow(state, title, text) {
+  $('#solo').hidden = false;
+  $('#solo').dataset.state = state;
+  $('#solo-title').textContent = title;
+  $('#solo-text').textContent = text;
+  $('#solo-cancel').hidden = state !== 'wait';
+  $('#solo-close').hidden = state === 'wait';
+  $('#solo-icon').textContent = { wait: '💳', ok: '✅', ko: '❌' }[state];
+}
+async function paySolo() {
+  const amt = Number(String(payState.amount).replace(',', '.')) || 0;
+  if (amt <= 0 || soloRun.active) return;
+  const f = currentFormula();
+  soloShow('wait', `Paiement de ${euro(amt)} en cours`, 'Envoi du montant au terminal Solo…');
+  soloRun.active = true;
+  try {
+    const res = await soloApi('POST', '/checkout', {
+      reader_id: settings.soloReaderId,
+      amount: amt.toFixed(2),
+      description: `HTV Flash${f ? ' - ' + formulaName(f).replace(/[^\p{L}\p{N} '-]/gu, '').trim() : ''}`,
+      reference: payState.clientId ? `htv-${payState.clientId}` : `htv-${Date.now()}`,
+    });
+    soloRun.checkoutId = res.checkout_id || '';
+    soloShow('wait', `Paiement de ${euro(amt)} en cours`, 'Le client présente sa carte, son téléphone ou sa montre sur le terminal Solo.');
+    const end = Date.now() + 3 * 60 * 1000;
+    while (soloRun.active && Date.now() < end) {
+      await new Promise((r) => { soloRun.timer = setTimeout(r, 2000); });
+      if (!soloRun.active || !soloRun.checkoutId) break;
+      let st;
+      try { st = await soloApi('GET', `/checkout?reader_id=${encodeURIComponent(settings.soloReaderId)}&checkout_id=${encodeURIComponent(soloRun.checkoutId)}`); }
+      catch (e) { if (e.status >= 400 && e.status < 500 && e.status !== 404) throw e; continue; }
+      const status = String(st.status || '').toLowerCase();
+      if (status === 'successful') {
+        soloRun.active = false;
+        soloShow('ok', `Paiement de ${euro(amt)} accepté`, 'Merci ! Le paiement est enregistré automatiquement.');
+        await markPaid('card');
+        setTimeout(() => { if ($('#solo').dataset.state === 'ok') $('#solo').hidden = true; }, 3000);
+        return;
+      }
+      if (status === 'failed' || status === 'cancelled') {
+        soloRun.active = false;
+        soloShow('ko', status === 'cancelled' ? 'Paiement annulé' : 'Paiement refusé', 'Rien n\'a été encaissé. Vous pouvez réessayer, ou utiliser le QR code ou les espèces.');
+        return;
+      }
+    }
+    if (soloRun.active) {
+      soloRun.active = false;
+      soloShow('ko', 'Pas de réponse du terminal', 'Vérifiez sur le Solo si le paiement est passé. S\'il est passé, touchez « Payé par carte ».');
+    }
+  } catch (e) {
+    soloRun.active = false;
+    soloShow('ko', 'Paiement non envoyé', e.message);
+  }
+}
+async function soloCancel() {
+  soloRun.active = false;
+  clearTimeout(soloRun.timer);
+  soloShow('ko', 'Paiement annulé', 'Annulation envoyée au terminal. Si le client a déjà payé, vérifiez sur le Solo.');
+  try { await soloApi('POST', '/terminate', { reader_id: settings.soloReaderId }); } catch (e) { console.warn(e); }
 }
