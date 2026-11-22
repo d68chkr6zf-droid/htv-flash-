@@ -330,6 +330,16 @@
       </div>
 
       <div class="card">
+        <h2>Sauvegarde des réglages</h2>
+        <p class="muted small">Vos formules, liens SumUp, réductions, thème et code sont copiés automatiquement dans le dossier des clients (fichier « htv-flash-reglages.json », sur Google Drive si le dossier y est). Après une réinstallation, choisissez de nouveau ce dossier : l'appli propose de tout remettre. Vous pouvez aussi garder une copie dans un fichier.</p>
+        <div class="row-2">
+          <button class="btn btn-ghost" id="btn-export-settings">💾 Enregistrer les réglages dans un fichier</button>
+          <button class="btn btn-ghost" id="btn-import-settings">📂 Restaurer depuis un fichier</button>
+        </div>
+        <input type="file" id="input-settings" accept=".json,application/json" hidden>
+      </div>
+
+      <div class="card">
         <h2>Données</h2>
         <div class="row-2">
           <button class="btn btn-ghost" id="btn-export-csv">Exporter les clients (CSV)</button>
@@ -352,6 +362,17 @@
   </div>
 
   <!-- code à 4 chiffres -->
+  <div class="pin" id="confirm" hidden>
+    <div class="pin-box">
+      <div class="pin-lock">💾</div>
+      <h2 id="confirm-title"></h2>
+      <p class="muted" id="confirm-text"></p>
+      <div class="row-2" style="margin-top:22px">
+        <button class="btn btn-ghost" id="confirm-cancel">Non</button>
+        <button class="btn btn-primary" id="confirm-ok">OK</button>
+      </div>
+    </div>
+  </div>
   <div class="pin" id="wipe" hidden>
     <div class="pin-box">
       <div class="pin-lock">🗑️</div>

@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -115,6 +115,81 @@ function loadSettings() {
 }
 function saveSettings() {
   try { localStorage.setItem('htv-settings', JSON.stringify(settings)); } catch { /* stockage indisponible */ }
+  scheduleSettingsBackup();
+}
+
+/* ---------- Sauvegarde des réglages (liens SumUp, formules, code…) ----------
+   Copie automatique dans le dossier des clients (Google Drive) : elle survit à une
+   désinstallation de l'appli. Restaurée en choisissant de nouveau ce dossier. */
+const BACKUP_FILE = 'htv-flash-reglages.json';
+let backupTimer = null;
+function settingsPayload() {
+  return JSON.stringify({ app: 'htv-flash', version: APP_VERSION, savedAt: new Date().toISOString(), settings }, null, 2);
+}
+function scheduleSettingsBackup() {
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(() => backupSettingsToFolder(), 800);
+}
+async function backupSettingsToFolder() {
+  try {
+    if (!rootHandle || (await rootHandle.queryPermission({ mode: 'readwrite' })) !== 'granted') return false;
+    const w = await (await rootHandle.getFileHandle(BACKUP_FILE, { create: true })).createWritable();
+    await w.write(settingsPayload());
+    await w.close();
+    return true;
+  } catch (e) { console.warn('sauvegarde réglages', e); return false; }
+}
+function parseBackup(text) {
+  const data = JSON.parse(text);
+  const st = data && data.settings;
+  if (!st || !Array.isArray(st.formulas)) throw new Error('fichier non reconnu');
+  return { st, savedAt: data.savedAt };
+}
+function restoreSettings(st) {
+  try { localStorage.setItem('htv-settings', JSON.stringify(st)); } catch {}
+  settings = loadSettings();
+  saveSettings();
+  applyTheme();
+  if (typeof renderSettings === 'function' && current === 'settings') renderSettings();
+  toast('Réglages restaurés ✅ (formules, liens SumUp, réductions, thème, code)', 4000);
+}
+async function offerRestoreFromFolder() {
+  try {
+    const fh = await rootHandle.getFileHandle(BACKUP_FILE);
+    const { st, savedAt } = parseBackup(await (await fh.getFile()).text());
+    const when = savedAt ? new Date(savedAt).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '';
+    const n = st.formulas.reduce((a, f) => a + Object.values(f.links || {}).filter(Boolean).length, 0);
+    const ok = await confirmBox('Réglages trouvés dans ce dossier',
+      `Une sauvegarde${when ? ` du ${when}` : ''} contient vos formules et ${n} lien(s) SumUp. Les remettre dans l'appli ? Les réglages actuels seront remplacés.`,
+      'Oui, restaurer');
+    if (ok) restoreSettings(st); else backupSettingsToFolder();
+  } catch (e) {
+    if (e.name === 'NotFoundError') backupSettingsToFolder(); // pas encore de sauvegarde : on la crée
+    else toast("La sauvegarde des réglages de ce dossier n'a pas pu être lue.", 4000);
+  }
+}
+function exportSettingsFile() {
+  const blob = new Blob([settingsPayload()], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `htv-flash-reglages-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function importSettingsFile(file) {
+  try {
+    const { st } = parseBackup(await file.text());
+    if (await confirmBox('Restaurer ces réglages ?', 'Les formules, les liens SumUp, les réductions, le thème et le code seront remplacés par ceux du fichier.', 'Oui, restaurer')) restoreSettings(st);
+  } catch { toast("Ce fichier n'est pas une sauvegarde de réglages HTV Flash.", 4000); }
+}
+function confirmBox(title, text, okLabel = 'OK') {
+  return new Promise((resolve) => {
+    $('#confirm-title').textContent = title;
+    $('#confirm-text').textContent = text;
+    $('#confirm-ok').textContent = okLabel;
+    $('#confirm').hidden = false;
+    const done = (v) => { $('#confirm').hidden = true; $('#confirm-ok').onclick = null; $('#confirm-cancel').onclick = null; resolve(v); };
+    $('#confirm-ok').onclick = () => done(true);
+    $('#confirm-cancel').onclick = () => done(false);
+  });
 }
 
 /* ---------------------------------------------------------
@@ -611,6 +686,7 @@ async function chooseRoot() {
     await db.set('root', rootHandle);
     renderFolderNames();
     toast(`Dossier « ${rootHandle.name} » enregistré`);
+    await offerRestoreFromFolder();
     return true;
   } catch (e) {
     if (e.name !== 'AbortError') toast('Impossible de choisir ce dossier.');
@@ -620,8 +696,10 @@ async function chooseRoot() {
 async function ensureRoot() {
   if (!rootHandle && !(await chooseRoot())) return null;
   const opts = { mode: 'readwrite' };
-  if ((await rootHandle.queryPermission(opts)) === 'granted') return rootHandle;
-  if ((await rootHandle.requestPermission(opts)) === 'granted') return rootHandle;
+  if ((await rootHandle.queryPermission(opts)) === 'granted' || (await rootHandle.requestPermission(opts)) === 'granted') {
+    scheduleSettingsBackup();
+    return rootHandle;
+  }
   toast("Autorisation refusée pour le dossier des clients.");
   return null;
 }
@@ -1530,6 +1608,9 @@ function bind() {
     renderFormulaList();
   });
   $('#btn-export-csv').addEventListener('click', async () => exportCSV(await db.clients()));
+  $('#btn-export-settings').addEventListener('click', exportSettingsFile);
+  $('#btn-import-settings').addEventListener('click', () => $('#input-settings').click());
+  $('#input-settings').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importSettingsFile(f); });
   $('#btn-clear-session').addEventListener('click', () => { newSession(); toast('Import vidé'); });
 
   // changement de jour : le thème automatique suit la date
