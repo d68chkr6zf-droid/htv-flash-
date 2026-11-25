@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.7';
+const APP_VERSION = '1.8.8';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1302,6 +1302,8 @@ function renderCaisse() {
   const ch = $('#reg-change');
   ch.classList.toggle('short', Boolean(caisse.given) && given < amt);
   ch.textContent = !caisse.given ? '—' : given < amt ? `il manque ${euro(amt - given)}` : euro(given - amt);
+  // « Encaisser » ne fonctionne que si la somme reçue couvre au moins le prix
+  $('#reg-go').disabled = !(given >= amt && amt > 0);
 }
 function caisseKey(k) {
   if (k === 'C') caisse.given = '';
@@ -1327,7 +1329,7 @@ function caisseBell() {
 async function caisseEncaisser() {
   const amt = Number(String(payState.amount).replace(',', '.')) || 0;
   const given = Number(caisse.given.replace(',', '.')) || 0;
-  if (caisse.given && given < amt) { toast(`Somme reçue insuffisante : il manque ${euro(amt - given)}.`); return; }
+  if (!(given >= amt)) { toast(caisse.given ? `Somme reçue insuffisante : il manque ${euro(amt - given)}.` : 'Indiquez la somme donnée par le client.'); return; }
   if ($('#caisse').classList.contains('open')) return;
   $('#caisse').classList.add('open');
   caisseBell();
@@ -1645,6 +1647,7 @@ function bind() {
   $('#btn-done-home').addEventListener('click', () => askWipeCard());
   $('#wipe-cancel').addEventListener('click', () => { $('#wipe').hidden = true; });
   $('#congrats-home').addEventListener('click', congratsHome);
+  $('#btn-home-wipe').addEventListener('click', homeWipeCard);
   $('#reg-keys').addEventListener('click', (e) => { const b = e.target.closest('[data-rk]'); if (b) caisseKey(b.dataset.rk); });
   $('#reg-cancel').addEventListener('click', () => { $('#caisse').hidden = true; });
   $('#reg-go').addEventListener('click', caisseEncaisser);
@@ -1835,6 +1838,36 @@ function askWipeCard() {
   const n = session.sdFiles.length;
   if (!n || !session.sdDir || !wiz.savedId) { newSession(); go('home'); return; }
   $('#wipe-sub').textContent = `${n} fichier(s) vont être supprimés de la carte « ${session.source} ». Les photos choisies sont déjà ${wiz.pendingSave ? "gardées dans l'appli, en attente de copie" : 'copiées dans le dossier du client'} ; les autres seront perdues.`;
+  $('#wipe').hidden = false;
+}
+// depuis l'accueil : lit la carte insérée et propose de l'effacer entièrement
+async function homeWipeCard() {
+  if (!hasFS) { toast('Utilisez Chrome pour effacer la carte.'); return; }
+  let dir = null;
+  if (sdHandle) {
+    try {
+      const opts = { mode: 'readwrite' };
+      if ((await sdHandle.queryPermission(opts)) === 'granted' || (await sdHandle.requestPermission(opts)) === 'granted') dir = sdHandle;
+    } catch { dir = null; }
+  }
+  const entries = [];
+  busy(true, 'Lecture de la carte…');
+  try {
+    if (dir) { try { await walkDir(dir, '', entries); } catch { dir = null; entries.length = 0; } }
+    if (!dir) {
+      busy(false);
+      dir = await chooseSD();
+      if (!dir) return;
+      busy(true, 'Lecture de la carte…');
+      await walkDir(dir, '', entries);
+    }
+  } catch (e) { console.error(e); toast('Lecture impossible : la carte est-elle insérée ?'); return; }
+  finally { busy(false); }
+  if (!entries.length) { toast(`La carte « ${dir.name} » est déjà vide ✅`); return; }
+  session.sdDir = dir;
+  session.sdFiles = entries.map((e) => ({ parent: e.parent, name: e.name }));
+  session.source = dir.name;
+  $('#wipe-sub').textContent = `${entries.length} photo(s) vont être supprimées de la carte « ${dir.name} ». Vérifiez que les photos du dernier client sont bien enregistrées dans son dossier : cette action est définitive.`;
   $('#wipe').hidden = false;
 }
 async function wipeCard() {
