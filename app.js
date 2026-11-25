@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.4';
+const APP_VERSION = '1.8.5';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1892,7 +1892,8 @@ async function paySolo() {
       }
       if (status === 'failed' || status === 'cancelled') {
         soloRun.active = false;
-        soloShow('ko', status === 'cancelled' ? 'Paiement annulé' : 'Paiement refusé', 'Rien n\'a été encaissé. Vous pouvez réessayer, ou utiliser le QR code ou les espèces.');
+        const why = st.payment_failure_reason || st.payment_status || '';
+        soloShow('ko', status === 'cancelled' ? 'Paiement annulé' : 'Paiement refusé', `Rien n'a été encaissé. Vous pouvez réessayer, ou utiliser le QR code ou les espèces.${why ? `\n(Raison indiquée par SumUp : ${why})` : ''}`);
         return;
       }
     }
