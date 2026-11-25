@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.8.3';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -718,6 +718,8 @@ async function ensureRoot() {
     for await (const _ of rootHandle.keys()) break; // le dossier existe-t-il encore ?
     busy(false);
     scheduleSettingsBackup();
+    const r = rootHandle;
+    setTimeout(() => { if (current !== 'wizard' || wiz.step >= 6) flushPending(r); }, 1500);
     return rootHandle;
   } catch (e) {
     busy(false);
@@ -903,13 +905,14 @@ async function wizNext() {
     if (wiz.savingAt && Date.now() - wiz.savingAt < 12000) { toast('Enregistrement en cours, patientez…'); return; }
     wiz.savingAt = Date.now();
     // « Valider » : enregistre la fiche et les photos puis passe directement au paiement
-    // si le dossier ne répond pas (Google Drive hors ligne, autorisation en attente…), on le dit
-    const slow = setTimeout(() => {
+    try {
+      // le dossier des clients doit répondre en moins de 10 s, sinon on propose une issue de secours
+      const root = await Promise.race([ensureRoot(), new Promise((r) => setTimeout(() => r('timeout'), 10000))]);
       busy(false);
-      toast("Le dossier des clients ne répond pas. Vérifiez internet si le dossier est sur Google Drive, ou autorisez l'accès en haut de l'écran, puis touchez de nouveau « Valider ».", 10000);
-    }, 12000);
-    try { await saveClient(); } catch (e) { console.error(e); busy(false); toast(`Enregistrement impossible : ${e.message || e}`, 5000); }
-    finally { clearTimeout(slow); wiz.savingAt = 0; }
+      if (root && root !== 'timeout') await saveClient(root);
+      else await saveFallback(root === 'timeout');
+    } catch (e) { console.error(e); busy(false); toast(`Enregistrement impossible : ${e.message || e}`, 5000); }
+    finally { wiz.savingAt = 0; }
     if (wiz.savedId) go('wizard', 6);
     return;
   }
@@ -926,6 +929,7 @@ function newSession({ keepPhotos = false } = {}) {
   $$('#client-form input').forEach((i) => i.classList.remove('invalid'));
   wiz.consent = null;
   wiz.savedId = null;
+  wiz.pendingSave = false;
   payState.clientId = '';
   payState.formula = null;
   payState.amount = '';
@@ -982,8 +986,8 @@ function renderRecap() {
   renderFolderNames();
 }
 
-async function saveClient() {
-  const root = await ensureRoot();
+async function saveClient(rootArg) {
+  const root = rootArg || (await ensureRoot());
   if (!root) return;
   const d = formData();
   const sel = session.photos.filter((p) => p.selected);
@@ -1026,6 +1030,102 @@ async function saveClient() {
     busy(false);
     toast(`Erreur pendant l'enregistrement : ${e.message || e}`, 5000);
   }
+}
+
+/* ---------- Issue de secours : dossier des clients injoignable ---------- */
+async function saveFallback(timedOut) {
+  const choice = await choiceBox(
+    timedOut ? 'Le dossier des clients ne répond pas' : "Le dossier des clients n'est pas disponible",
+    `${rootHandle ? `Le dossier « ${rootHandle.name} » ne répond pas (Google Drive hors ligne, dossier déplacé ou autorisation en attente). ` : ''}Pour ne pas faire attendre le client, l'appli peut garder sa fiche et ses photos en attente et les copier dans le dossier plus tard, toute seule.`,
+    [
+      { id: 'later', label: '⏳ Continuer, copier plus tard', primary: true },
+      { id: 'pick', label: '📁 Choisir un autre dossier' },
+      { id: 'cancel', label: 'Annuler' },
+    ]);
+  if (choice === 'pick') {
+    if (await chooseRoot()) { const r = await ensureRoot(); if (r) await saveClient(r); }
+    return;
+  }
+  if (choice === 'later') await savePending();
+}
+async function savePending() {
+  const d = formData();
+  const sel = session.photos.filter((p) => p.selected);
+  busy(true, 'Mise en attente des photos…', 0);
+  try {
+    // copie des photos dans l'appli (elles restent disponibles même si la carte est vidée)
+    const keep = async (f) => (f ? new File([await f.arrayBuffer()], f.name, { type: f.type, lastModified: f.lastModified }) : null);
+    const pendingPhotos = [];
+    for (let i = 0; i < sel.length; i++) {
+      busy(true, `Mise en attente de la photo ${i + 1} / ${sel.length}`, i / sel.length);
+      pendingPhotos.push({ name: sel[i].name, file: await keep(sel[i].file), raw: await keep(sel[i].raw) });
+    }
+    const c = {
+      id: `c${Date.now()}`,
+      ...d,
+      consent: wiz.consent === 'yes',
+      consentText: wiz.consent === 'yes' ? settings.consentText : '',
+      photos: sel.map((p) => p.name),
+      folder: '',
+      pending: true,
+      pendingPhotos,
+      createdAt: new Date().toISOString(),
+      retouched: false, paid: false, amount: 0, formula: '', payMethod: '',
+      thumbData: await thumbDataFor(sel[0]),
+      event: activeEvent() ? activeEvent().id : '',
+      eventName: activeEvent() ? activeEvent().name : '',
+      eventPct: activeEvent() ? eventPct(activeEvent().id) : 0,
+      formulaId: formulaForCount(sel.length)?.id || '',
+      donation: activeEvent()?.id === 'telethon' ? (formulaForCount(sel.length)?.telethon || 0) : 0,
+    };
+    await db.putClient(c);
+    wiz.savedId = c.id;
+    wiz.pendingSave = true;
+    payState.clientId = c.id;
+    busy(false);
+    toast('Fiche gardée en attente ⏳ : les photos seront copiées dans le dossier dès qu\'il répondra.', 5000);
+  } catch (e) {
+    busy(false);
+    throw e;
+  }
+}
+let flushing = false;
+async function flushPending(root) {
+  if (flushing || !root) return 0;
+  flushing = true;
+  let n = 0;
+  try {
+    const list = (await db.clients()).filter((c) => c.pending && c.pendingPhotos);
+    for (const c of list) {
+      const base = safeName(`${c.createdAt.slice(0, 10)}_${c.nom}_${c.prenom}`) || `client-${Date.now()}`;
+      const dir = await uniqueDir(root, base);
+      const names = await copyPhotosTo(dir, c.pendingPhotos, `${c.prenom} : photo`);
+      const fresh = (await db.client(c.id)) || c; // garde un paiement fait entre-temps
+      fresh.photos = names; fresh.folder = dir.name; fresh.pending = false; delete fresh.pendingPhotos;
+      await writeClientFiles(fresh, dir);
+      await db.putClient(fresh);
+      n++;
+    }
+  } catch (e) { console.warn('copie des fiches en attente', e); }
+  finally { busy(false); flushing = false; }
+  if (n) toast(`${n} fiche(s) en attente copiée(s) dans le dossier des clients ✅`, 4500);
+  return n;
+}
+function choiceBox(title, text, options) {
+  return new Promise((resolve) => {
+    $('#choice-title').textContent = title;
+    $('#choice-text').textContent = text;
+    const box = $('#choice-btns');
+    box.innerHTML = '';
+    options.forEach((o) => {
+      const b = document.createElement('button');
+      b.className = `btn ${o.primary ? 'btn-primary' : 'btn-ghost'}`;
+      b.textContent = o.label;
+      b.onclick = () => { $('#choice').hidden = true; resolve(o.id); };
+      box.appendChild(b);
+    });
+    $('#choice').hidden = false;
+  });
 }
 
 async function renderDone() {
@@ -1222,6 +1322,9 @@ async function handleSumUpReturn() {
 let clientFilter = 'all';
 async function renderClients() {
   renderFolderNames();
+  const pendingN = (await db.clients()).filter((c) => c.pending).length;
+  $('#pending-bar').hidden = !pendingN;
+  $('#pending-count').textContent = pendingN;
   const q = $('#client-search').value.trim().toLowerCase();
   let list = (await db.clients()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (clientFilter === 'todo') list = list.filter((c) => !c.retouched);
@@ -1232,7 +1335,7 @@ async function renderClients() {
     <button class="client-item" data-cid="${c.id}">
       <span class="client-thumb">${c.thumbData ? `<img src="${c.thumbData}" alt="">` : '👤'}</span>
       <span class="client-info">
-        <b>${esc(c.prenom)} ${esc(c.nom)}</b>
+        <b>${esc(c.prenom)} ${esc(c.nom)}${c.pending ? ' · ⏳ en attente' : ''}</b>
         <span class="muted small">${new Date(c.createdAt).toLocaleDateString('fr-FR')} · ${c.photos.length} photo(s)</span>
         <span class="badges">${badges(c)}</span>
       </span>
@@ -1662,6 +1765,10 @@ function bind() {
   });
   $('#btn-export-csv').addEventListener('click', async () => exportCSV(await db.clients()));
   $('#btn-export-settings').addEventListener('click', exportSettingsFile);
+  $('#btn-flush-pending').addEventListener('click', async () => {
+    const r = await ensureRoot();
+    if (r) { await flushPending(r); renderClients(); }
+  });
   $('#btn-import-settings').addEventListener('click', () => $('#input-settings').click());
   $('#input-settings').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importSettingsFile(f); });
   $('#btn-clear-session').addEventListener('click', () => { newSession(); toast('Import vidé'); });
@@ -1689,7 +1796,7 @@ function bind() {
 function askWipeCard() {
   const n = session.sdFiles.length;
   if (!n || !session.sdDir || !wiz.savedId) { newSession(); go('home'); return; }
-  $('#wipe-sub').textContent = `${n} fichier(s) vont être supprimés de la carte « ${session.source} ». Les photos choisies sont déjà copiées dans le dossier du client ; les autres seront perdues.`;
+  $('#wipe-sub').textContent = `${n} fichier(s) vont être supprimés de la carte « ${session.source} ». Les photos choisies sont déjà ${wiz.pendingSave ? "gardées dans l'appli, en attente de copie" : 'copiées dans le dossier du client'} ; les autres seront perdues.`;
   $('#wipe').hidden = false;
 }
 async function wipeCard() {

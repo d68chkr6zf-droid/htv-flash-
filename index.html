@@ -189,6 +189,10 @@
         <div><b>Dossier des clients</b><div class="muted small folder-name">Aucun dossier choisi</div></div>
         <button class="btn btn-ghost choose-root">Choisir…</button>
       </div>
+      <div class="card folder-card" id="pending-bar" hidden>
+        <div><b>⏳ <span id="pending-count">0</span> fiche(s) en attente</b><div class="muted small">Leurs photos sont gardées dans l'appli et seront copiées dans le dossier des clients dès qu'il répondra.</div></div>
+        <button class="btn btn-primary" id="btn-flush-pending">Copier maintenant</button>
+      </div>
       <div class="toolbar">
         <input class="search" id="client-search" type="search" placeholder="Rechercher un client…">
         <div class="segmented" id="client-filter">
@@ -388,6 +392,14 @@
         <button class="btn btn-ghost" id="solo-cancel">Annuler le paiement</button>
         <button class="btn btn-primary" id="solo-close" hidden>Fermer</button>
       </div>
+    </div>
+  </div>
+  <div class="pin" id="choice" hidden>
+    <div class="pin-box">
+      <div class="pin-lock">📁</div>
+      <h2 id="choice-title"></h2>
+      <p class="muted" id="choice-text"></p>
+      <div id="choice-btns" style="display:grid;gap:12px;margin-top:22px"></div>
     </div>
   </div>
   <div class="pin" id="confirm" hidden>
