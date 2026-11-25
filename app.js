@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -704,14 +704,23 @@ async function ensureRoot() {
   }
   const opts = { mode: 'readwrite' };
   try {
-    if ((await rootHandle.queryPermission(opts)) !== 'granted' && (await rootHandle.requestPermission(opts)) !== 'granted') {
+    busy(true, `Ouverture du dossier « ${rootHandle.name} »…`);
+    const perm = await rootHandle.queryPermission(opts);
+    if (perm !== 'granted') {
+      busy(false);
+      toast(`Chrome demande l'accès au dossier « ${rootHandle.name} » : touchez « Autoriser » dans la petite fenêtre en haut de l'écran.`, 8000);
+    }
+    if (perm !== 'granted' && (await rootHandle.requestPermission(opts)) !== 'granted') {
       toast("Autorisation refusée pour le dossier des clients : touchez « Valider » et acceptez.", 5000);
       return null;
     }
+    busy(true, `Ouverture du dossier « ${rootHandle.name} »…`);
     for await (const _ of rootHandle.keys()) break; // le dossier existe-t-il encore ?
+    busy(false);
     scheduleSettingsBackup();
     return rootHandle;
   } catch (e) {
+    busy(false);
     // dossier supprimé, déplacé ou Google Drive non disponible : on le redemande
     console.error(e);
     toast("Le dossier des clients est introuvable : choisissez-le de nouveau.", 5000);
@@ -891,8 +900,16 @@ async function wizNext() {
   const problem = stepProblem(s);
   if (problem) { if (s === 3) formErrors(true); toast(problem); return; }
   if (s === 5 && !wiz.savedId) {
+    if (wiz.savingAt && Date.now() - wiz.savingAt < 12000) { toast('Enregistrement en cours, patientez…'); return; }
+    wiz.savingAt = Date.now();
     // « Valider » : enregistre la fiche et les photos puis passe directement au paiement
+    // si le dossier ne répond pas (Google Drive hors ligne, autorisation en attente…), on le dit
+    const slow = setTimeout(() => {
+      busy(false);
+      toast("Le dossier des clients ne répond pas. Vérifiez internet si le dossier est sur Google Drive, ou autorisez l'accès en haut de l'écran, puis touchez de nouveau « Valider ».", 10000);
+    }, 12000);
     try { await saveClient(); } catch (e) { console.error(e); busy(false); toast(`Enregistrement impossible : ${e.message || e}`, 5000); }
+    finally { clearTimeout(slow); wiz.savingAt = 0; }
     if (wiz.savedId) go('wizard', 6);
     return;
   }
