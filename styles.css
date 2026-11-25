@@ -454,3 +454,73 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
 #solo:not([data-state="wait"]) .solo-spinner { display: none; }
 @keyframes solo-spin { to { transform: rotate(360deg); } }
 #solo-text { white-space: pre-line; }
+
+/* ---------- Page Félicitations ---------- */
+.congrats { z-index: 95; overflow: hidden; }
+.congrats-box { width: min(760px, 92vw); position: relative; z-index: 1; animation: enter .4s ease; }
+.congrats-box h1 { font-size: clamp(2.4rem, 6vw, 4rem); color: var(--accent); margin: 10px 0 14px; }
+.congrats-text { font-size: 1.5rem; line-height: 1.4; margin: 0 0 22px; }
+.congrats-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+.congrats-btns .btn-lg { min-width: 220px; }
+.congrats-confetti { position: absolute; inset: 0; pointer-events: none; }
+.congrats-confetti i { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 2px; background: var(--accent); opacity: .9; animation: confetti linear infinite; }
+@keyframes confetti { to { transform: translateY(110vh) rotate(var(--r)); } }
+
+/* ---------- Caisse enregistreuse vintage (espèces) ---------- */
+.caisse { z-index: 90; }
+.register {
+  --brass: var(--accent);
+  --brass-hi: color-mix(in srgb, var(--accent) 55%, #fff);
+  --brass-lo: color-mix(in srgb, var(--accent) 55%, #000);
+  --enamel: color-mix(in srgb, var(--bg-2) 45%, #120c06);
+  --ivory: #f7f0dc;
+  position: relative; width: min(820px, 94vw); padding: 18px 26px 16px; border-radius: 26px 26px 14px 14px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 22px, rgba(0,0,0,.06) 22px 23px),
+    linear-gradient(180deg, var(--brass-hi), var(--brass) 30%, var(--brass-lo));
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.55), inset 0 -6px 14px rgba(0,0,0,.35), 0 26px 60px rgba(0,0,0,.55);
+  color: #1b1307; font-family: Georgia, "Times New Roman", serif;
+}
+.reg-crank { position: absolute; right: -34px; top: 150px; width: 34px; height: 16px; border-radius: 0 8px 8px 0; background: linear-gradient(var(--brass-hi), var(--brass-lo)); }
+.reg-crank i { position: absolute; right: 2px; top: 6px; width: 12px; height: 110px; border-radius: 8px; background: linear-gradient(90deg, var(--brass-lo), var(--brass-hi), var(--brass-lo)); transform-origin: 50% 0; transition: transform .5s; }
+.reg-crank i::after { content: ""; position: absolute; left: -10px; bottom: -22px; width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8, transparent 40%), #7a1c1c; box-shadow: 0 4px 8px rgba(0,0,0,.4); }
+.caisse.open .reg-crank i { transform: rotate(-40deg); }
+.reg-top { text-align: center; }
+.reg-crest { display: inline-block; padding: 4px 26px; margin-bottom: 8px; border: 2px solid var(--brass-lo); border-radius: 40px; background: var(--enamel); color: var(--brass-hi); font-size: 1.15rem; letter-spacing: .25em; text-transform: uppercase; box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+.reg-crest span { color: #d4af37; font-weight: 700; }
+.reg-window { display: inline-block; padding: 10px 18px; border-radius: 12px; background: var(--enamel); border: 4px solid var(--brass-lo); box-shadow: inset 0 6px 14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.4); }
+.reg-flags { display: flex; align-items: flex-end; gap: 6px; }
+.reg-flag { width: 54px; height: 74px; display: grid; place-items: center; border-radius: 6px; background: linear-gradient(var(--ivory) 0 48%, #e3d9bd 50%, var(--ivory) 52%); color: #1b1307; font-size: 3rem; font-weight: 700; box-shadow: inset 0 -3px 0 rgba(0,0,0,.18), 0 2px 3px rgba(0,0,0,.5); animation: flagup .5s cubic-bezier(.3,1.6,.5,1) both; }
+.reg-flag:nth-child(2) { animation-delay: .06s; } .reg-flag:nth-child(3) { animation-delay: .12s; } .reg-flag:nth-child(5) { animation-delay: .18s; } .reg-flag:nth-child(6) { animation-delay: .24s; }
+.reg-sep, .reg-cur { color: var(--ivory); font-size: 2.6rem; font-weight: 700; padding: 0 2px 8px; }
+@keyframes flagup { from { transform: translateY(40px); opacity: 0; } }
+.reg-label { margin-top: 6px; font-size: .9rem; letter-spacing: .3em; font-weight: 700; color: #2a1c07; }
+.reg-body { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; margin-top: 12px; padding: 14px; border-radius: 16px; background: var(--enamel); box-shadow: inset 0 4px 12px rgba(0,0,0,.6); }
+.reg-bills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.reg-bills button { min-height: 46px; border-radius: 10px; border: 2px solid var(--brass-lo); background: linear-gradient(#e9f1df, #c5d7b4); color: #1f3214; font: 700 1.05rem Georgia, serif; box-shadow: 0 3px 0 rgba(0,0,0,.45); }
+.reg-bills .reg-exact { grid-column: 1 / -1; background: linear-gradient(var(--brass-hi), var(--brass)); color: #1b1307; }
+.reg-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px; justify-items: center; }
+.reg-pad button, .reg-bills button { touch-action: manipulation; transition: transform .06s, box-shadow .06s; }
+.reg-pad button { width: 62px; height: 62px; border-radius: 50%; border: 4px solid var(--brass); background: radial-gradient(circle at 40% 35%, #fff, var(--ivory) 55%, #d9cca6); color: #1b1307; font: 700 1.6rem Georgia, serif; box-shadow: 0 0 0 2px #0006, 0 5px 0 #0008; }
+.reg-pad button:active, .reg-bills button:active { transform: translateY(4px); box-shadow: 0 0 0 2px #0006, 0 1px 0 #0008; }
+.reg-ticket { align-self: stretch; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 20px; background: #fffdf6; color: #2b2418; font-family: "Courier New", monospace; box-shadow: 0 4px 10px rgba(0,0,0,.5); position: relative; border-radius: 3px 3px 0 0; }
+.reg-ticket::after { content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px; background: linear-gradient(-45deg, transparent 7px, #fffdf6 0) 0 0 / 14px 10px repeat-x, linear-gradient(45deg, transparent 7px, #fffdf6 0) 0 0 / 14px 10px repeat-x; }
+.reg-ticket-head { text-align: center; font-weight: 700; letter-spacing: .12em; border-bottom: 2px dashed #9c907a; padding-bottom: 8px; }
+.reg-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 1.05rem; }
+.reg-big { font-size: 1.3rem; border-top: 2px dashed #9c907a; padding-top: 10px; }
+.reg-big b { font-size: 1.8rem; color: #0f5d2c; }
+.reg-big b.short { font-size: 1.1rem; color: #a11d1d; }
+.reg-ticket-foot { margin-top: auto; font-size: .85rem; color: #6b604c; }
+.reg-drawer { position: relative; height: 52px; margin: 14px -8px 0; }
+.reg-drawer-front { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; border-radius: 8px; background: linear-gradient(var(--brass), var(--brass-lo)); box-shadow: inset 0 2px 0 rgba(255,255,255,.4), 0 6px 0 rgba(0,0,0,.4); transition: transform .45s cubic-bezier(.2,1.4,.4,1); }
+.reg-drawer-front span { padding: 2px 30px; border-radius: 6px; background: var(--enamel); color: var(--brass-hi); letter-spacing: .4em; font-weight: 700; box-shadow: inset 0 2px 4px #000a; }
+.reg-cash { position: absolute; inset: 4px 30px; display: flex; gap: 6px; opacity: 0; transition: opacity .2s; }
+.reg-cash i { flex: 1; border-radius: 4px; background: linear-gradient(135deg, #b9d3a3, #7fa863); box-shadow: inset 0 0 0 2px #5f8a48; }
+.caisse.open .reg-drawer-front { transform: translateY(46px) scale(1.04); }
+.caisse.open .reg-cash { opacity: 1; }
+.reg-actions { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 18px; }
+.reg-actions .btn-ghost { color: #1b1307; border-color: var(--brass-lo); background: rgba(255,255,255,.2); }
+.reg-go { min-height: 68px; padding: 0 40px; border-radius: 40px; border: 3px solid var(--brass-lo); background: radial-gradient(circle at 45% 30%, #e05050, #8e1717 70%); color: #fff6e0; font: 700 1.5rem Georgia, serif; letter-spacing: .05em; box-shadow: 0 6px 0 #4a0a0a, 0 10px 18px rgba(0,0,0,.4); }
+.reg-go:active { transform: translateY(5px); box-shadow: 0 1px 0 #4a0a0a; }
+@media (max-height: 760px) { .register { transform: scale(.9); } }
+@media (max-width: 700px) { .reg-body { grid-template-columns: 1fr; } .reg-crank { display: none; } .reg-flag { width: 40px; height: 56px; font-size: 2.2rem; } }

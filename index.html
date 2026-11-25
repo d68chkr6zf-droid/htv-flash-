@@ -263,7 +263,7 @@
           <p class="muted small">Réservé au photographe, une fois le paiement validé sur SumUp :</p>
           <div class="row-2">
             <button class="btn btn-lg btn-success" id="pay-mark-card">✅ Payé par carte</button>
-            <button class="btn btn-lg btn-ghost" id="pay-mark-cash">💶 Payé en espèces</button>
+            <button class="btn btn-lg btn-ghost" id="pay-mark-cash">💶 Paiement espèces</button>
           </div>
           <p class="paid-state" id="pay-state"></p>
         </div>
@@ -391,6 +391,47 @@
       <div style="margin-top:22px">
         <button class="btn btn-ghost" id="solo-cancel">Annuler le paiement</button>
         <button class="btn btn-primary" id="solo-close" hidden>Fermer</button>
+      </div>
+    </div>
+  </div>
+  <div class="pin congrats" id="congrats" hidden>
+    <div class="congrats-confetti" id="congrats-confetti" aria-hidden="true"></div>
+    <div class="pin-box congrats-box">
+      <h1>Félicitations 🎉</h1>
+      <p class="congrats-text">Vous recevrez vos photos retouchées dans les plus brefs délais.</p>
+      <p class="muted">Retour à l'accueil dans <b id="congrats-count">10</b> s</p>
+      <div class="congrats-btns">
+        <button class="btn btn-ghost" id="congrats-wipe" hidden>🗑️ Vider la carte</button>
+        <button class="btn btn-lg btn-primary" id="congrats-home">🏠 Accueil</button>
+      </div>
+    </div>
+  </div>
+  <div class="pin caisse" id="caisse" hidden>
+    <div class="register">
+      <div class="reg-crank" aria-hidden="true"><i></i></div>
+      <div class="reg-top">
+        <div class="reg-crest"><span>HTV</span> Flash</div>
+        <div class="reg-window"><div class="reg-flags" id="reg-flags"></div></div>
+        <div class="reg-label">— À PAYER —</div>
+      </div>
+      <div class="reg-body">
+        <div class="reg-keys" id="reg-keys">
+          <div class="reg-bills">
+            <button data-rk="+5">5 €</button><button data-rk="+10">10 €</button><button data-rk="+20">20 €</button><button data-rk="+50">50 €</button><button data-rk="exact" class="reg-exact">Compte juste</button>
+          </div>
+          <div class="reg-pad"><button data-rk="7">7</button><button data-rk="8">8</button><button data-rk="9">9</button><button data-rk="4">4</button><button data-rk="5">5</button><button data-rk="6">6</button><button data-rk="1">1</button><button data-rk="2">2</button><button data-rk="3">3</button><button data-rk=",">,</button><button data-rk="0">0</button><button data-rk="C">C</button></div>
+        </div>
+        <div class="reg-ticket">
+          <div class="reg-ticket-head">REÇU · HTV FLASH</div>
+          <div class="reg-line"><span>Somme reçue</span><b id="reg-given">—</b></div>
+          <div class="reg-line reg-big"><span>À rendre</span><b id="reg-change">—</b></div>
+          <div class="reg-ticket-foot">Tapez la somme donnée par le client, ou touchez directement « Encaisser ».</div>
+        </div>
+      </div>
+      <div class="reg-drawer"><div class="reg-drawer-front"><span>ESPÈCES</span></div><div class="reg-cash" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+      <div class="reg-actions">
+        <button class="btn btn-ghost" id="reg-cancel">Annuler</button>
+        <button class="reg-go" id="reg-go">🔔 Encaisser</button>
       </div>
     </div>
   </div>

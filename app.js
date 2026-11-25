@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.5';
+const APP_VERSION = '1.8.6';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1225,7 +1225,7 @@ function bindPay(node) {
   $('#pay-sumup-app', node).addEventListener('click', openSumUpApp);
   $('#pay-solo', node).addEventListener('click', paySolo);
   $('#pay-mark-card', node).addEventListener('click', () => markPaid('card'));
-  $('#pay-mark-cash', node).addEventListener('click', () => markPaid('cash'));
+  $('#pay-mark-cash', node).addEventListener('click', openCaisse);
 }
 function openSumUpApp() {
   // API « SumUp URL scheme » : ouvre l'app SumUp avec le montant pré-rempli
@@ -1258,9 +1258,84 @@ async function markPaid(method) {
       syncClientFile(c);
     }
   }
-  toast(`Paiement de ${euro(amt)} enregistré ✅`);
   if (current === 'wizard') go('wizard', 7);
   else renderPay();
+  showCongrats();
+}
+
+/* ---------- Page « Félicitations » après le paiement, puis retour à l'accueil ---------- */
+const congrats = { timer: null, left: 0 };
+function showCongrats(seconds = 10) {
+  const box = $('#congrats');
+  const conf = $('#congrats-confetti');
+  conf.innerHTML = Array.from({ length: 36 }, (_, i) =>
+    `<i style="left:${Math.random() * 100}%;animation-delay:${(Math.random() * 1.6).toFixed(2)}s;animation-duration:${(2.6 + Math.random() * 2).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg;${i % 3 ? '' : 'background:var(--accent-2);'}"></i>`).join('');
+  $('#congrats-wipe').hidden = !(current === 'wizard' && session.sdFiles.length && session.sdDir && wiz.savedId);
+  box.hidden = false;
+  congrats.left = seconds;
+  $('#congrats-count').textContent = congrats.left;
+  clearInterval(congrats.timer);
+  congrats.timer = setInterval(() => {
+    congrats.left--;
+    $('#congrats-count').textContent = Math.max(congrats.left, 0);
+    if (congrats.left <= 0) congratsHome();
+  }, 1000);
+}
+function hideCongrats() { clearInterval(congrats.timer); $('#congrats').hidden = true; }
+function congratsHome() { hideCongrats(); newSession(); go('home'); }
+
+/* ---------- Caisse enregistreuse (paiement en espèces) ---------- */
+const caisse = { given: '' };
+function openCaisse() {
+  const amt = Number(String(payState.amount).replace(',', '.')) || 0;
+  if (amt <= 0) { toast('Choisissez d\'abord la formule ou le montant.'); return; }
+  caisse.given = '';
+  $('#caisse').classList.remove('open');
+  $('#reg-flags').innerHTML = amt.toFixed(2).replace('.', ',').split('').map((ch) =>
+    ch === ',' ? '<span class="reg-sep">,</span>' : `<span class="reg-flag">${ch}</span>`).join('') + '<span class="reg-cur">€</span>';
+  renderCaisse();
+  $('#caisse').hidden = false;
+}
+function renderCaisse() {
+  const amt = Number(String(payState.amount).replace(',', '.')) || 0;
+  const given = Number(caisse.given.replace(',', '.')) || 0;
+  $('#reg-given').textContent = caisse.given ? euro(given) : '—';
+  const ch = $('#reg-change');
+  ch.classList.toggle('short', Boolean(caisse.given) && given < amt);
+  ch.textContent = !caisse.given ? '—' : given < amt ? `il manque ${euro(amt - given)}` : euro(given - amt);
+}
+function caisseKey(k) {
+  if (k === 'C') caisse.given = '';
+  else if (k === ',') { if (!caisse.given.includes(',')) caisse.given = (caisse.given || '0') + ','; }
+  else if (k.startsWith('+')) caisse.given = String((Number(caisse.given.replace(',', '.')) || 0) + Number(k.slice(1))).replace('.', ',');
+  else if (k === 'exact') caisse.given = String(Number(String(payState.amount).replace(',', '.')) || 0).replace('.', ',');
+  else if (caisse.given.length < 7 && !/,\d\d$/.test(caisse.given)) caisse.given = caisse.given === '0' ? k : caisse.given + k;
+  renderCaisse();
+}
+function caisseBell() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    [[1568, 0], [2093, 0.09]].forEach(([f, t]) => {
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, ac.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.35, ac.currentTime + t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t + 1.1);
+      o.connect(g).connect(ac.destination); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 1.2);
+    });
+  } catch { /* pas de son */ }
+}
+async function caisseEncaisser() {
+  const amt = Number(String(payState.amount).replace(',', '.')) || 0;
+  const given = Number(caisse.given.replace(',', '.')) || 0;
+  if (caisse.given && given < amt) { toast(`Somme reçue insuffisante : il manque ${euro(amt - given)}.`); return; }
+  if ($('#caisse').classList.contains('open')) return;
+  $('#caisse').classList.add('open');
+  caisseBell();
+  await new Promise((r) => setTimeout(r, 1400));
+  $('#caisse').hidden = true;
+  $('#caisse').classList.remove('open');
+  await markPaid('cash');
 }
 async function handleSumUpReturn() {
   const q = new URLSearchParams(location.search);
@@ -1570,6 +1645,11 @@ function bind() {
   $('#btn-new-session').addEventListener('click', () => { newSession(); go('wizard', 1); });
   $('#btn-done-home').addEventListener('click', () => askWipeCard());
   $('#wipe-cancel').addEventListener('click', () => { $('#wipe').hidden = true; });
+  $('#congrats-home').addEventListener('click', congratsHome);
+  $('#congrats-wipe').addEventListener('click', () => { hideCongrats(); askWipeCard(); });
+  $('#reg-keys').addEventListener('click', (e) => { const b = e.target.closest('[data-rk]'); if (b) caisseKey(b.dataset.rk); });
+  $('#reg-cancel').addEventListener('click', () => { $('#caisse').hidden = true; });
+  $('#reg-go').addEventListener('click', caisseEncaisser);
   $('#wipe-ok').addEventListener('click', () => wipeCard());
 
   // Visionneuse
@@ -1877,7 +1957,8 @@ async function paySolo() {
     soloShow('wait', `Paiement de ${euro(amt)} en cours`, 'Le client présente sa carte, son téléphone ou sa montre sur le terminal Solo.');
     const end = Date.now() + 3 * 60 * 1000;
     while (soloRun.active && Date.now() < end) {
-      await new Promise((r) => { soloRun.timer = setTimeout(r, 2000); });
+      // on interroge SumUp toutes les 0,8 s pour afficher le résultat dès qu'il est connu
+      await new Promise((r) => { soloRun.timer = setTimeout(r, 800); });
       if (!soloRun.active || !soloRun.checkoutId) break;
       let st;
       try { st = await soloApi('GET', `/checkout?reader_id=${encodeURIComponent(settings.soloReaderId)}&checkout_id=${encodeURIComponent(soloRun.checkoutId)}`); }
@@ -1885,9 +1966,8 @@ async function paySolo() {
       const status = String(st.status || '').toLowerCase();
       if (status === 'successful') {
         soloRun.active = false;
-        soloShow('ok', `Paiement de ${euro(amt)} accepté`, 'Merci ! Le paiement est enregistré automatiquement.');
+        $('#solo').hidden = true;
         await markPaid('card');
-        setTimeout(() => { if ($('#solo').dataset.state === 'ok') $('#solo').hidden = true; }, 3000);
         return;
       }
       if (status === 'failed' || status === 'cancelled') {
