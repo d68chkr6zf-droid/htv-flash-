@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.6';
+const APP_VERSION = '1.8.7';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1270,7 +1270,6 @@ function showCongrats(seconds = 10) {
   const conf = $('#congrats-confetti');
   conf.innerHTML = Array.from({ length: 36 }, (_, i) =>
     `<i style="left:${Math.random() * 100}%;animation-delay:${(Math.random() * 1.6).toFixed(2)}s;animation-duration:${(2.6 + Math.random() * 2).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg;${i % 3 ? '' : 'background:var(--accent-2);'}"></i>`).join('');
-  $('#congrats-wipe').hidden = !(current === 'wizard' && session.sdFiles.length && session.sdDir && wiz.savedId);
   box.hidden = false;
   congrats.left = seconds;
   $('#congrats-count').textContent = congrats.left;
@@ -1646,7 +1645,6 @@ function bind() {
   $('#btn-done-home').addEventListener('click', () => askWipeCard());
   $('#wipe-cancel').addEventListener('click', () => { $('#wipe').hidden = true; });
   $('#congrats-home').addEventListener('click', congratsHome);
-  $('#congrats-wipe').addEventListener('click', () => { hideCongrats(); askWipeCard(); });
   $('#reg-keys').addEventListener('click', (e) => { const b = e.target.closest('[data-rk]'); if (b) caisseKey(b.dataset.rk); });
   $('#reg-cancel').addEventListener('click', () => { $('#caisse').hidden = true; });
   $('#reg-go').addEventListener('click', caisseEncaisser);
