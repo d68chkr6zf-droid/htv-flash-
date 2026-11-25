@@ -455,6 +455,13 @@ summary { min-height: 48px; display: flex; align-items: center; font-weight: 600
 @keyframes solo-spin { to { transform: rotate(360deg); } }
 #solo-text { white-space: pre-line; }
 
+/* ---------- Boutons de paiement principaux ---------- */
+.pay-main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.pay-main .btn { min-height: 96px; font-size: 1.3rem; }
+.btn-cash { background: linear-gradient(#e9f1df, #b9d3a3); color: #1f3214; border: 0; }
+.pay-main .btn:disabled { opacity: .45; }
+#pin { z-index: 100; }
+
 /* ---------- Effacer la carte (accueil) ---------- */
 .home-wipe { display: flex; justify-content: center; margin: 26px 0 10px; }
 .home-wipe .btn { min-width: 280px; border-color: color-mix(in srgb, var(--danger) 55%, transparent); }

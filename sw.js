@@ -1,5 +1,5 @@
 /* HTV Flash : fonctionne hors ligne (cache de l'application) */
-const CACHE = 'htvflash-v1.8.8';
+const CACHE = 'htvflash-v1.8.9';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vendor/qrcode.js', 'manifest.webmanifest',
   'icons/logo-htvflash.svg', 'icons/logo-htvflash-light.svg', 'icons/telethon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 

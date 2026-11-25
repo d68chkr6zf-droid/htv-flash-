@@ -250,7 +250,10 @@
           <div class="pay-donation" id="pay-donation" hidden></div>
         </div>
         <div class="card pay-actions">
-          <button class="btn btn-xl btn-primary" id="pay-solo" hidden>💳 Payer sur le terminal Solo</button>
+          <div class="pay-main">
+            <button class="btn btn-xl btn-primary" id="pay-solo">💳 Paiement carte bleue</button>
+            <button class="btn btn-xl btn-cash" id="pay-mark-cash">💶 Paiement espèces</button>
+          </div>
           <button class="btn btn-xl btn-primary" id="pay-sumup-app" hidden>📲 Encaisser avec l'app SumUp</button>
           <div class="qr-wrap" id="pay-qr-wrap" hidden>
             <div id="pay-qr" class="qr"></div>
@@ -261,11 +264,8 @@
             SumUp n'est pas encore configuré.<br>Ajoutez votre lien de paiement SumUp dans les <b>Réglages</b> ⚙️.
           </div>
           <hr>
-          <p class="muted small">Réservé au photographe, une fois le paiement validé sur SumUp :</p>
-          <div class="row-2">
-            <button class="btn btn-lg btn-success" id="pay-mark-card">✅ Payé par carte</button>
-            <button class="btn btn-lg btn-ghost" id="pay-mark-cash">💶 Paiement espèces</button>
-          </div>
+          <p class="muted small">Réservé au photographe, si le paiement par carte est passé sans être détecté (QR code, Solo sans réponse) :</p>
+          <button class="btn btn-lg btn-success" id="pay-mark-card">✅ Payé par carte (code demandé)</button>
           <p class="paid-state" id="pay-state"></p>
         </div>
       </div>

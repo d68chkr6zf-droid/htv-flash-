@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.8';
+const APP_VERSION = '1.8.9';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1201,9 +1201,8 @@ function refreshPayOutputs() {
   }
   $('#pay-sumup-app', payNode).hidden = !settings.sumupKey;
   $('#pay-sumup-app', payNode).disabled = amt <= 0;
-  $('#pay-solo', payNode).hidden = !soloReady();
   $('#pay-solo', payNode).disabled = amt <= 0;
-  $('#pay-solo', payNode).textContent = `💳 Payer ${amt > 0 ? euro(amt) + ' ' : ''}sur le terminal Solo`;
+  $('#pay-mark-cash', payNode).disabled = amt <= 0;
   $('#pay-no-config', payNode).hidden = Boolean(link || settings.sumupKey || soloReady());
 }
 function bindPay(node) {
@@ -1223,8 +1222,15 @@ function bindPay(node) {
     if (link) window.open(link, '_blank', 'noopener');
   });
   $('#pay-sumup-app', node).addEventListener('click', openSumUpApp);
-  $('#pay-solo', node).addEventListener('click', paySolo);
-  $('#pay-mark-card', node).addEventListener('click', () => markPaid('card'));
+  $('#pay-solo', node).addEventListener('click', () => {
+    if (!soloReady()) { toast('Terminal Solo non associé : Réglages ⚙️ › SumUp › Terminal SumUp Solo. En attendant, utilisez le QR code.', 5000); return; }
+    paySolo();
+  });
+  $('#pay-mark-card', node).addEventListener('click', async () => {
+    const amt = Number(String(payState.amount).replace(',', '.')) || 0;
+    if (amt <= 0) { toast('Indiquez le montant payé.'); return; }
+    if (await askPin(settings.pinHash ? 'check' : 'create', `Confirmez le paiement de ${euro(amt)} par carte`)) markPaid('card');
+  });
   $('#pay-mark-cash', node).addEventListener('click', openCaisse);
 }
 function openSumUpApp() {
@@ -1331,6 +1337,8 @@ async function caisseEncaisser() {
   const given = Number(caisse.given.replace(',', '.')) || 0;
   if (!(given >= amt)) { toast(caisse.given ? `Somme reçue insuffisante : il manque ${euro(amt - given)}.` : 'Indiquez la somme donnée par le client.'); return; }
   if ($('#caisse').classList.contains('open')) return;
+  // le photographe confirme avec son code : le client ne peut pas valider sans avoir payé
+  if (!(await askPin(settings.pinHash ? 'check' : 'create', `Confirmez la réception de ${euro(given)} en espèces`))) return;
   $('#caisse').classList.add('open');
   caisseBell();
   await new Promise((r) => setTimeout(r, 1400));
@@ -1535,9 +1543,9 @@ async function hashPin(pin) {
 }
 let pinResolve = null;
 const pinState = { mode: 'check', entry: '', first: '' };
-function askPin(mode = settings.pinHash ? 'check' : 'create') {
+function askPin(mode = settings.pinHash ? 'check' : 'create', why = '') {
   if (pinResolve) pinResolve(false);
-  Object.assign(pinState, { mode, entry: '', first: '' });
+  Object.assign(pinState, { mode, entry: '', first: '', why });
   updatePinUI();
   $('#pin').hidden = false;
   return new Promise((res) => { pinResolve = res; });
@@ -1549,8 +1557,8 @@ function updatePinUI() {
     confirm: ['Confirmer le code', 'Entrez le même code une deuxième fois'],
   };
   const [t, sub] = titles[pinState.mode];
-  $('#pin-title').textContent = t;
-  $('#pin-sub').textContent = sub;
+  $('#pin-title').textContent = pinState.why && pinState.mode === 'check' ? 'Code du photographe' : t;
+  $('#pin-sub').textContent = pinState.why && pinState.mode === 'check' ? pinState.why : sub;
   $$('#pin-dots span').forEach((d, i) => d.classList.toggle('on', i < pinState.entry.length));
 }
 function closePin(ok) {
