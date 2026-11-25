@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -698,14 +698,27 @@ async function chooseRoot() {
   }
 }
 async function ensureRoot() {
-  if (!rootHandle && !(await chooseRoot())) return null;
+  if (!rootHandle && !(await chooseRoot())) {
+    toast("Choisissez le dossier des clients pour pouvoir enregistrer.", 4500);
+    return null;
+  }
   const opts = { mode: 'readwrite' };
-  if ((await rootHandle.queryPermission(opts)) === 'granted' || (await rootHandle.requestPermission(opts)) === 'granted') {
+  try {
+    if ((await rootHandle.queryPermission(opts)) !== 'granted' && (await rootHandle.requestPermission(opts)) !== 'granted') {
+      toast("Autorisation refusée pour le dossier des clients : touchez « Valider » et acceptez.", 5000);
+      return null;
+    }
+    for await (const _ of rootHandle.keys()) break; // le dossier existe-t-il encore ?
     scheduleSettingsBackup();
     return rootHandle;
+  } catch (e) {
+    // dossier supprimé, déplacé ou Google Drive non disponible : on le redemande
+    console.error(e);
+    toast("Le dossier des clients est introuvable : choisissez-le de nouveau.", 5000);
+    rootHandle = null;
+    renderFolderNames();
+    return (await chooseRoot()) ? rootHandle : null;
   }
-  toast("Autorisation refusée pour le dossier des clients.");
-  return null;
 }
 const safeName = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-');
 const today = () => new Date().toISOString().slice(0, 10);
@@ -868,7 +881,7 @@ function updateWizNav() {
   const problem = stepProblem(s);
   hint.textContent = problem;
   next.classList.toggle('btn-success', false);
-  if (s === 5) next.textContent = wiz.savedId ? 'Passer au paiement →' : '💾 Enregistrer';
+  if (s === 5) next.textContent = wiz.savedId ? 'Passer au paiement →' : '✅ Valider';
   else if (s === 6) next.textContent = 'Terminer';
   else next.textContent = 'Suivant →';
   next.style.opacity = problem ? .5 : 1;
@@ -877,7 +890,12 @@ async function wizNext() {
   const s = wiz.step;
   const problem = stepProblem(s);
   if (problem) { if (s === 3) formErrors(true); toast(problem); return; }
-  if (s === 5 && !wiz.savedId) { await saveClient(); return; }
+  if (s === 5 && !wiz.savedId) {
+    // « Valider » : enregistre la fiche et les photos puis passe directement au paiement
+    try { await saveClient(); } catch (e) { console.error(e); busy(false); toast(`Enregistrement impossible : ${e.message || e}`, 5000); }
+    if (wiz.savedId) go('wizard', 6);
+    return;
+  }
   if (s === 6) {
     const c = wiz.savedId && (await db.client(wiz.savedId));
     if (c && !c.paid) toast('Paiement à faire plus tard : retrouvez-le dans « Photos à retoucher ».', 3500);
