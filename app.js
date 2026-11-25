@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.3';
+const APP_VERSION = '1.8.4';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -910,9 +910,10 @@ async function wizNext() {
       const root = await Promise.race([ensureRoot(), new Promise((r) => setTimeout(() => r('timeout'), 10000))]);
       busy(false);
       if (root && root !== 'timeout') await saveClient(root);
-      else await saveFallback(root === 'timeout');
+      else if ((await saveFallback(root === 'timeout')) === 'retry') { wiz.savingAt = 0; return wizNext(); }
     } catch (e) { console.error(e); busy(false); toast(`Enregistrement impossible : ${e.message || e}`, 5000); }
     finally { wiz.savingAt = 0; }
+    // règle : jamais de paiement tant que la fiche n'est pas enregistrée dans le dossier
     if (wiz.savedId) go('wizard', 6);
     return;
   }
@@ -1036,58 +1037,17 @@ async function saveClient(rootArg) {
 async function saveFallback(timedOut) {
   const choice = await choiceBox(
     timedOut ? 'Le dossier des clients ne répond pas' : "Le dossier des clients n'est pas disponible",
-    `${rootHandle ? `Le dossier « ${rootHandle.name} » ne répond pas (Google Drive hors ligne, dossier déplacé ou autorisation en attente). ` : ''}Pour ne pas faire attendre le client, l'appli peut garder sa fiche et ses photos en attente et les copier dans le dossier plus tard, toute seule.`,
+    `${rootHandle ? `Le dossier « ${rootHandle.name} » ne répond pas (Google Drive hors ligne, dossier déplacé ou autorisation en attente). ` : ''}La fiche du client doit être enregistrée avant le paiement : réessayez, ou choisissez un autre dossier (par exemple dans « Mes fichiers »).`,
     [
-      { id: 'later', label: '⏳ Continuer, copier plus tard', primary: true },
+      { id: 'retry', label: '🔄 Réessayer', primary: true },
       { id: 'pick', label: '📁 Choisir un autre dossier' },
       { id: 'cancel', label: 'Annuler' },
     ]);
   if (choice === 'pick') {
     if (await chooseRoot()) { const r = await ensureRoot(); if (r) await saveClient(r); }
-    return;
+    return '';
   }
-  if (choice === 'later') await savePending();
-}
-async function savePending() {
-  const d = formData();
-  const sel = session.photos.filter((p) => p.selected);
-  busy(true, 'Mise en attente des photos…', 0);
-  try {
-    // copie des photos dans l'appli (elles restent disponibles même si la carte est vidée)
-    const keep = async (f) => (f ? new File([await f.arrayBuffer()], f.name, { type: f.type, lastModified: f.lastModified }) : null);
-    const pendingPhotos = [];
-    for (let i = 0; i < sel.length; i++) {
-      busy(true, `Mise en attente de la photo ${i + 1} / ${sel.length}`, i / sel.length);
-      pendingPhotos.push({ name: sel[i].name, file: await keep(sel[i].file), raw: await keep(sel[i].raw) });
-    }
-    const c = {
-      id: `c${Date.now()}`,
-      ...d,
-      consent: wiz.consent === 'yes',
-      consentText: wiz.consent === 'yes' ? settings.consentText : '',
-      photos: sel.map((p) => p.name),
-      folder: '',
-      pending: true,
-      pendingPhotos,
-      createdAt: new Date().toISOString(),
-      retouched: false, paid: false, amount: 0, formula: '', payMethod: '',
-      thumbData: await thumbDataFor(sel[0]),
-      event: activeEvent() ? activeEvent().id : '',
-      eventName: activeEvent() ? activeEvent().name : '',
-      eventPct: activeEvent() ? eventPct(activeEvent().id) : 0,
-      formulaId: formulaForCount(sel.length)?.id || '',
-      donation: activeEvent()?.id === 'telethon' ? (formulaForCount(sel.length)?.telethon || 0) : 0,
-    };
-    await db.putClient(c);
-    wiz.savedId = c.id;
-    wiz.pendingSave = true;
-    payState.clientId = c.id;
-    busy(false);
-    toast('Fiche gardée en attente ⏳ : les photos seront copiées dans le dossier dès qu\'il répondra.', 5000);
-  } catch (e) {
-    busy(false);
-    throw e;
-  }
+  return choice;
 }
 let flushing = false;
 async function flushPending(root) {
